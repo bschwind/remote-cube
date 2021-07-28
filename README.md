@@ -22,13 +22,13 @@ $ make menuconfig
 ## Build
 
 ```bash
-$ make
+$ make -j8 # Or pick your favorite parallel number
 ```
 
 ## Run (and see serial output)
 
 ```bash
-$ make flash monitor
+$ make -j8 flash monitor
 ```
 
 ## Monitor Serial Output
