@@ -25,6 +25,10 @@ static void gamecube_rx_task() {
         return;
     }
 
+    // References for 1-wire implementation for GameCube data protocol:
+    // https://github.com/espressif/esp-idf/issues/5237
+    // https://github.com/espressif/esp-idf/issues/4608
+
     // Max ticks per item = 32,768 (rmt_item32_t durations are in ticks and use 15 bits)
 
     // clock divide = 1
@@ -132,8 +136,12 @@ static void gamecube_rx_task() {
         size_t num_items = rx_size / sizeof(rmt_item32_t);
         printf("rx_size: %u bytes, %u items\n", rx_size, num_items);
 
-        int bit_counter = 0;
-        uint8_t byte_val = 0;
+        for (int i = 0; i < num_items; i++) {
+            uint16_t duration0 = ticks_to_us(item[i].duration0, clock_ticks_per_10_us);
+            uint16_t duration1 = ticks_to_us(item[i].duration1, clock_ticks_per_10_us);
+
+            printf("duration0 (microseconds): %u, duration1 (microseconds): %u\n", duration0, duration1);
+        }
 
         if (item) {
             vRingbufferReturnItem(rb, (void*)item);
