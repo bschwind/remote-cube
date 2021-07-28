@@ -14,8 +14,6 @@ extern "C" {
 typedef struct {
     gpio_num_t input_pin;
     xQueueHandle gamecube_data_queue;
-    uint16_t idle_threshold_us;
-    uint8_t clock_divider;
     size_t ring_buffer_size;
 } gamecube_rx_config;
 

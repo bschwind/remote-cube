@@ -8,8 +8,6 @@
 void app_main(void) {
     gamecube_rx_config rx_config = {
         .input_pin = GAMECUBE_IN_PIN,
-        .idle_threshold_us = 40958,
-        .clock_divider = 100,
         // TODO - Double check the ring buffer size, we may not need 3000
         .ring_buffer_size = 3000};
 
