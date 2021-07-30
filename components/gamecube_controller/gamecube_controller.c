@@ -66,8 +66,8 @@ static void populate_command_data(uint32_t data, uint8_t num_bits, bool enable_r
 }
 
 static void gamecube_rx_task() {
-    int rx_channel = 2;
-    int tx_channel = 0;
+    int tx_channel = 0; // for ESP32-C3, 0-1 are valid TX channels
+    int rx_channel = 2; // for ESP32-C3, 2-3 are valid RX channels
 
     // References for 1-wire implementation for GameCube data protocol:
     // https://github.com/espressif/esp-idf/issues/5237
