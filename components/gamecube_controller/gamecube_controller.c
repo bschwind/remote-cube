@@ -66,8 +66,8 @@ static void populate_command_data(uint32_t data, uint8_t num_bits, bool enable_r
 }
 
 static void gamecube_rx_task() {
-    int rx_channel = 0;
-    int tx_channel = 2;
+    int rx_channel = 2;
+    int tx_channel = 0;
 
     // References for 1-wire implementation for GameCube data protocol:
     // https://github.com/espressif/esp-idf/issues/5237
@@ -129,7 +129,8 @@ static void gamecube_rx_task() {
     rmt_rx.channel = rx_channel;
     rmt_rx.gpio_num = rx_config->input_pin;
     rmt_rx.clk_div = RMT_CLOCK_DIVIDER;
-    rmt_rx.mem_block_num = 7; // One block has 64 * 32 bits, so 7 = 1792 bytes
+    // TODO(jake): setting this to 7 led to RMT failure
+    rmt_rx.mem_block_num = 1; // One block has 64 * 32 bits, so 7 = 1792 bytes
     rmt_rx.flags = 0;
 
     rmt_rx.rx_config.idle_threshold = RMT_RX_IDLE_THRESHOLD_US;
@@ -143,9 +144,13 @@ static void gamecube_rx_task() {
     // rmt_get_ringbuf_handle(rx_channel, &rx_ring_buffer);
     // End RX Setup
 
+<<<<<<< HEAD
 
     bool enable_rumble = true;
     populate_command_data(CONSOLE_TO_CONTROLLER_COMMAND, 24, enable_rumble);
+=======
+    populate_command_data(CONSOLE_TO_CONTROLLER_COMMAND, 24, false);
+>>>>>>> 06bfb1c (esp32c3 compilation support & cmake build system)
 
     // Basic logic:
     // while not connected:

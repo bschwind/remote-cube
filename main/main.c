@@ -3,7 +3,7 @@
 #include "freertos/task.h"
 #include "gamecube_controller.h"
 
-#define GAMECUBE_IN_PIN 25
+#define GAMECUBE_IN_PIN 1
 
 void app_main(void) {
     gamecube_rx_config rx_config = {
