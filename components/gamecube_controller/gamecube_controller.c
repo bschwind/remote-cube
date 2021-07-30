@@ -66,8 +66,8 @@ static void populate_command_data(uint32_t data, uint8_t num_bits, bool enable_r
 }
 
 static void gamecube_rx_task() {
-    int rx_channel = 0;
-    int tx_channel = 2;
+    int tx_channel = 0; // for ESP32-C3, 0-1 are valid TX channels
+    int rx_channel = 2; // for ESP32-C3, 2-3 are valid RX channels
 
     // References for 1-wire implementation for GameCube data protocol:
     // https://github.com/espressif/esp-idf/issues/5237
@@ -129,7 +129,7 @@ static void gamecube_rx_task() {
     rmt_rx.channel = rx_channel;
     rmt_rx.gpio_num = rx_config->input_pin;
     rmt_rx.clk_div = RMT_CLOCK_DIVIDER;
-    rmt_rx.mem_block_num = 7; // One block has 64 * 32 bits, so 7 = 1792 bytes
+    rmt_rx.mem_block_num = 4;
     rmt_rx.flags = 0;
 
     rmt_rx.rx_config.idle_threshold = RMT_RX_IDLE_THRESHOLD_US;
