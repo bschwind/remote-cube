@@ -29,4 +29,10 @@ menu "GameCube Networking Config"
         default 5000
         help
             Port of the UDP server (used for both client and server).
+
+    config ESP_SERVER_MODE
+        bool "Server mode"
+        default y
+        help
+            If yes, server mode (receives packets), otherwise client mode.
 endmenu
