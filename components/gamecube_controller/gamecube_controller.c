@@ -10,7 +10,9 @@
 
 static gamecube_rx_config* rx_config = NULL;
 static rmt_item32_t CONSOLE_TO_CONTROLLER_DATA[25];
-static uint32_t CONSOLE_TO_CONTROLLER_COMMAND = 0b010000000000001100000010;
+
+// Why does this differ from the documentation?
+static uint32_t CONSOLE_TO_CONTROLLER_COMMAND = 0b010000000000001100000000;
 
 static uint16_t us_to_ticks(uint16_t us, uint16_t clock_ticks_per_10_us) {
     return ((us * clock_ticks_per_10_us) / 10) & 0x7FFF;
@@ -26,14 +28,14 @@ static void populate_command_data(uint32_t data, uint8_t num_bits, bool enable_r
         return;
     }
 
-    rmt_item32_t one_bit = {
+    rmt_item32_t zero_bit = {
         .duration0 = 3, // 3 microseconds low
         .level0 = 0,
         .duration1 = 1, // 1 microsecond high
         .level1 = 1,
     };
 
-    rmt_item32_t zero_bit = {
+    rmt_item32_t one_bit = {
         .duration0 = 1, // 1 microseocond low
         .level0 = 0,
         .duration1 = 3, // 3 microseconds high
@@ -65,7 +67,7 @@ static void populate_command_data(uint32_t data, uint8_t num_bits, bool enable_r
 
 static void gamecube_rx_task() {
     int rx_channel = 0;
-    int tx_channel = 7;
+    int tx_channel = 2;
 
     // References for 1-wire implementation for GameCube data protocol:
     // https://github.com/espressif/esp-idf/issues/5237
@@ -112,7 +114,7 @@ static void gamecube_rx_task() {
     rmt_tx.tx_config.carrier_level = 1;
     rmt_tx.tx_config.idle_level = 1;
     rmt_tx.tx_config.carrier_duty_percent = 50;
-    rmt_tx.tx_config.carrier_en = true;
+    rmt_tx.tx_config.carrier_en = false;
     rmt_tx.tx_config.loop_en = false;
     rmt_tx.tx_config.idle_output_en = true;
 
@@ -134,15 +136,16 @@ static void gamecube_rx_task() {
     rmt_rx.rx_config.filter_ticks_thresh = 100;
     rmt_rx.rx_config.filter_en = true;
 
-    rmt_config(&rmt_rx);
-    rmt_driver_install(rmt_rx.channel, rx_config->ring_buffer_size, 0);
+    // rmt_config(&rmt_rx);
+    // rmt_driver_install(rmt_rx.channel, rx_config->ring_buffer_size, 0);
 
-    RingbufHandle_t rx_ring_buffer = NULL;
-    rmt_get_ringbuf_handle(rx_channel, &rx_ring_buffer);
+    // RingbufHandle_t rx_ring_buffer = NULL;
+    // rmt_get_ringbuf_handle(rx_channel, &rx_ring_buffer);
     // End RX Setup
 
 
-    populate_command_data(CONSOLE_TO_CONTROLLER_COMMAND, 24, false);
+    bool enable_rumble = true;
+    populate_command_data(CONSOLE_TO_CONTROLLER_COMMAND, 24, enable_rumble);
 
     // Basic logic:
     // while not connected:
@@ -163,42 +166,42 @@ static void gamecube_rx_task() {
     while (true) {
         while (!controller_connected) {
             // Stop trying to receive data.
-            rmt_rx_stop(rx_channel);
+            // rmt_rx_stop(rx_channel);
 
             // Send the polling command to the controller.
             bool wait_tx_done = true;
             rmt_write_items(tx_channel, CONSOLE_TO_CONTROLLER_DATA, cmd_size, wait_tx_done);
 
             // Listen for the controller's response.
-            rmt_rx_start(rx_channel, 1);
+            // rmt_rx_start(rx_channel, 1);
 
-            size_t rx_size = 0;
+            // size_t rx_size = 0;
 
-            rmt_item32_t* item =
-                (rmt_item32_t*)xRingbufferReceive(rx_ring_buffer, &rx_size, 6 / portTICK_RATE_MS);
+            // rmt_item32_t* item =
+            //     (rmt_item32_t*)xRingbufferReceive(rx_ring_buffer, &rx_size, 6 / portTICK_RATE_MS);
 
-            if (item) {
-                // TODO(bschwind) - Only set this to true if we got a valid response.
-                controller_connected = true;
+            // if (item) {
+            //     // TODO(bschwind) - Only set this to true if we got a valid response.
+            //     controller_connected = true;
 
-                size_t num_items = rx_size / sizeof(rmt_item32_t);
-                printf("rx_size: %u bytes, %u items\n", rx_size, num_items);
+            //     size_t num_items = rx_size / sizeof(rmt_item32_t);
+            //     printf("rx_size: %u bytes, %u items\n", rx_size, num_items);
 
-                for (int i = 0; i < num_items; i++) {
-                    uint16_t duration0 = ticks_to_us(item[i].duration0, clock_ticks_per_10_us);
-                    uint16_t duration1 = ticks_to_us(item[i].duration1, clock_ticks_per_10_us);
+            //     for (int i = 0; i < num_items; i++) {
+            //         uint16_t duration0 = ticks_to_us(item[i].duration0, clock_ticks_per_10_us);
+            //         uint16_t duration1 = ticks_to_us(item[i].duration1, clock_ticks_per_10_us);
 
-                    printf("duration0 (microseconds): %u, duration1 (microseconds): %u\n", duration0, duration1);
-                }
+            //         printf("duration0 (microseconds): %u, duration1 (microseconds): %u\n", duration0, duration1);
+            //     }
 
-                vRingbufferReturnItem(rx_ring_buffer, (void*)item);
-            } else {
-                // No response received in 6 ms, try again.
-            }
+            //     vRingbufferReturnItem(rx_ring_buffer, (void*)item);
+            // } else {
+            //     // No response received in 6 ms, try again.
+            // }
         }
 
         // Stop trying to receive data.
-        rmt_rx_stop(rx_channel);
+        // rmt_rx_stop(rx_channel);
 
         // Send the polling command to the controller.
         bool wait_tx_done = true;

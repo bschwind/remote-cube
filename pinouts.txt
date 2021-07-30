@@ -1,0 +1,5 @@
+White - 5V
+Red - Data
+Black - Ground
+Yellow - Ground
+Green - 3.3V
