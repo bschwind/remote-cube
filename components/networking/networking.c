@@ -13,12 +13,11 @@
 #include "lwip/sockets.h"
 #include <lwip/netdb.h>
 
-#define EXAMPLE_ESP_WIFI_SSID      "HG8045-069D-bg"
-#define EXAMPLE_ESP_WIFI_PASS      "hgr8x6nh"
-#define EXAMPLE_ESP_MAXIMUM_RETRY  5
-
-#define HOST_IP_ADDR "192.168.1.137"
-#define PORT 5000
+#define WIFI_SSID           CONFIG_ESP_WIFI_SSID
+#define WIFI_PASS           CONFIG_ESP_WIFI_PASSWORD
+#define WIFI_MAXIMUM_RETRY  CONFIG_ESP_MAXIMUM_RETRY
+#define HOST_IP_ADDR        CONFIG_ESP_SERVER_IP
+#define PORT                CONFIG_ESP_SERVER_PORT
 
 /* FreeRTOS event group to signal when we are connected*/
 static EventGroupHandle_t s_wifi_event_group;
@@ -38,7 +37,7 @@ static void event_handler(void* arg, esp_event_base_t event_base,
     if (event_base == WIFI_EVENT && event_id == WIFI_EVENT_STA_START) {
         esp_wifi_connect();
     } else if (event_base == WIFI_EVENT && event_id == WIFI_EVENT_STA_DISCONNECTED) {
-        if (s_retry_num < EXAMPLE_ESP_MAXIMUM_RETRY) {
+        if (s_retry_num < WIFI_MAXIMUM_RETRY) {
             esp_wifi_connect();
             s_retry_num++;
             ESP_LOGI(TAG, "retry to connect to the AP");
@@ -81,8 +80,8 @@ void wifi_init_sta(void)
 
     wifi_config_t wifi_config = {
         .sta = {
-            .ssid = EXAMPLE_ESP_WIFI_SSID,
-            .password = EXAMPLE_ESP_WIFI_PASS,
+            .ssid = WIFI_SSID,
+            .password = WIFI_PASS,
             /* Setting a password implies station will connect to all security modes including WEP/WPA.
              * However these modes are deprecated and not advisable to be used. Incase your Access point
              * doesn't support WPA2, these mode can be enabled by commenting below line */
@@ -112,10 +111,10 @@ void wifi_init_sta(void)
      * happened. */
     if (bits & WIFI_CONNECTED_BIT) {
         ESP_LOGI(TAG, "connected to ap SSID:%s password:%s",
-                 EXAMPLE_ESP_WIFI_SSID, EXAMPLE_ESP_WIFI_PASS);
+                 WIFI_SSID, WIFI_PASS);
     } else if (bits & WIFI_FAIL_BIT) {
         ESP_LOGI(TAG, "Failed to connect to SSID:%s, password:%s",
-                 EXAMPLE_ESP_WIFI_SSID, EXAMPLE_ESP_WIFI_PASS);
+                 WIFI_SSID, WIFI_PASS);
     } else {
         ESP_LOGE(TAG, "UNEXPECTED EVENT");
     }
