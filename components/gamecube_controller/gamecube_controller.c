@@ -14,14 +14,6 @@ static rmt_item32_t CONSOLE_TO_CONTROLLER_DATA[25];
 // Why does this differ from the documentation?
 static uint32_t CONSOLE_TO_CONTROLLER_COMMAND = 0b010000000000001100000000;
 
-static uint16_t us_to_ticks(uint16_t us, uint16_t clock_ticks_per_10_us) {
-    return ((us * clock_ticks_per_10_us) / 10) & 0x7FFF;
-}
-
-static uint16_t ticks_to_us(uint16_t ticks, uint16_t clock_ticks_per_10_us) {
-    return (((ticks & 0x7FFF) * 10) / clock_ticks_per_10_us);
-}
-
 static void populate_command_data(uint32_t data, uint8_t num_bits, bool enable_rumble) {
     if (num_bits > 24) {
         printf("CONSOLE_TO_CONTROLLER_DATA bits is higher than 24\n");
@@ -63,6 +55,17 @@ static void populate_command_data(uint32_t data, uint8_t num_bits, bool enable_r
 
     // Stop bit
     CONSOLE_TO_CONTROLLER_DATA[num_bits] = one_bit;
+}
+
+static uint8_t read_byte(rmt_item32_t* items) {
+    uint8_t val = 0;
+
+    for (int i = 0; i < 8; i++) {
+        bool is_one = items[i].duration0 == 1;
+        val |= (is_one << (7 - i));
+    }
+
+    return val;
 }
 
 static void gamecube_rx_task() {
@@ -133,7 +136,7 @@ static void gamecube_rx_task() {
     rmt_rx.flags = 0;
 
     rmt_rx.rx_config.idle_threshold = RMT_RX_IDLE_THRESHOLD_US / 10 * (clock_ticks_per_10_us);
-    rmt_rx.rx_config.filter_ticks_thresh = 100;
+    rmt_rx.rx_config.filter_ticks_thresh = 0;
     rmt_rx.rx_config.filter_en = false;
 
     rmt_config(&rmt_rx);
@@ -148,75 +151,78 @@ static void gamecube_rx_task() {
     gpio_matrix_out(rx_config->input_pin, RMT_SIG_OUT0_IDX + tx_channel, 0, 0);
     gpio_matrix_in(rx_config->input_pin, RMT_SIG_IN0_IDX + rx_channel, 0);
 
-
-
-
-    bool enable_rumble = true;
+    // Populate the "console" command.
+    bool enable_rumble = false;
     populate_command_data(CONSOLE_TO_CONTROLLER_COMMAND, 24, enable_rumble);
 
-    // Basic logic:
-    // while not connected:
-    //     Send the probe data (000000001) every 12ms
-    // Once connected:
-    //     1.) Clear the RX memory and call rmt_rx_stop()
-    //     Send the data request (0100 0000 0000 0011 0000 0010) as a blocking call.
-    //     Call rmt_rx_start()
-    //     Receive the data from the ring buffer with xRingbufferReceive().
-    //     If no data is received, go to the "while not connected" loop above.
-    //     Send the received data over the controller data queue
-    //     Sleep for some amount of time (6ms?)
-    //     Go to step 1
-
-    bool controller_connected = false;
     size_t cmd_size = sizeof(CONSOLE_TO_CONTROLLER_DATA) / sizeof(CONSOLE_TO_CONTROLLER_DATA[0]);
 
+    // Listen for the controller's response.
+    rmt_rx_start(rx_channel, 1);
+
     while (true) {
-        while (!controller_connected) {
-            // Stop trying to receive data.
-            rmt_rx_stop(rx_channel);
-
-            // Send the polling command to the controller.
-            bool wait_tx_done = true;
-            rmt_write_items(tx_channel, CONSOLE_TO_CONTROLLER_DATA, cmd_size, wait_tx_done);
-
-            // Listen for the controller's response.
-            rmt_rx_start(rx_channel, 1);
-
-            size_t rx_size = 0;
-
-            rmt_item32_t* item =
-                (rmt_item32_t*)xRingbufferReceive(rx_ring_buffer, &rx_size, 10 / portTICK_RATE_MS);
-
-            if (item) {
-                // TODO(bschwind) - Only set this to true if we got a valid response.
-                // controller_connected = true;
-
-                size_t num_items = rx_size / sizeof(rmt_item32_t);
-                printf("rx_size: %u bytes, %u items\n", rx_size, num_items);
-
-                for (int i = 0; i < num_items; i++) {
-                    uint16_t duration0 = ticks_to_us(item[i].duration0, clock_ticks_per_10_us);
-                    uint16_t duration1 = ticks_to_us(item[i].duration1, clock_ticks_per_10_us);
-
-                    printf("duration0 (microseconds): %u, duration1 (microseconds): %u\n", duration0, duration1);
-                }
-
-                vRingbufferReturnItem(rx_ring_buffer, (void*)item);
-            } else {
-                // No response received in 6 ms, try again.
-            }
-        }
-
-        // Stop trying to receive data.
-        rmt_rx_stop(rx_channel);
-
         // Send the polling command to the controller.
         bool wait_tx_done = true;
         rmt_write_items(tx_channel, CONSOLE_TO_CONTROLLER_DATA, cmd_size, wait_tx_done);
 
-        // TODO - read the response
+        size_t rx_size = 0;
 
-        vTaskDelay(10 / portTICK_RATE_MS);
+        rmt_item32_t* item =
+            (rmt_item32_t*)xRingbufferReceive(rx_ring_buffer, &rx_size, 100);
+
+        if (item) {
+            size_t num_items = rx_size / sizeof(rmt_item32_t);
+
+            if (num_items >= 90) {
+                bool start_button = item[28].duration0 == 1;
+                bool y_button = item[29].duration0 == 1;
+                bool x_button = item[30].duration0 == 1;
+                bool b_button = item[31].duration0 == 1;
+                bool a_button = item[32].duration0 == 1;
+
+                bool l_button = item[34].duration0 == 1;
+                bool r_button = item[35].duration0 == 1;
+                bool z_button = item[36].duration0 == 1;
+                bool dpad_up_button = item[37].duration0 == 1;
+                bool dpad_down_button = item[38].duration0 == 1;
+                bool dpad_right_button = item[39].duration0 == 1;
+                bool dpad_left_button = item[40].duration0 == 1;
+
+                uint8_t joystick_x = read_byte(&item[41]);
+                uint8_t joystick_y = read_byte(&item[49]);
+                uint8_t c_stick_x = read_byte(&item[57]);
+                uint8_t c_stick_y = read_byte(&item[65]);
+                uint8_t l_bumper = read_byte(&item[73]);
+                uint8_t r_bumper = read_byte(&item[81]);
+
+                printf("S: %u, Y: %u, X: %u, B: %u, A: %u, L: %u, R: %u, Z: %u, ⬆️: %u, ⬇️: %u, ➡️: %u, ⬅️: %u, Joystick: (%u, %u), C-Stick: (%u, %u), Bumps: (%u, %u)\n",
+                    start_button,
+                    y_button,
+                    x_button,
+                    b_button,
+                    a_button,
+                    l_button,
+                    r_button,
+                    z_button,
+                    dpad_up_button,
+                    dpad_down_button,
+                    dpad_right_button,
+                    dpad_left_button,
+                    joystick_x,
+                    joystick_y,
+                    c_stick_x,
+                    c_stick_y,
+                    l_bumper,
+                    r_bumper
+                );
+            }
+
+            vRingbufferReturnItem(rx_ring_buffer, (void*)item);
+        } else {
+            // No response received, try again.
+        }
+
+        // vTaskDelay(4); // TODO(bschwind) - Double check this value.
     }
 
     vTaskDelete(NULL);
