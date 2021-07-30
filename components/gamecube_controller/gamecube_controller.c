@@ -132,16 +132,23 @@ static void gamecube_rx_task() {
     rmt_rx.mem_block_num = 4;
     rmt_rx.flags = 0;
 
-    rmt_rx.rx_config.idle_threshold = RMT_RX_IDLE_THRESHOLD_US;
+    rmt_rx.rx_config.idle_threshold = RMT_RX_IDLE_THRESHOLD_US / 10 * (clock_ticks_per_10_us);
     rmt_rx.rx_config.filter_ticks_thresh = 100;
-    rmt_rx.rx_config.filter_en = true;
+    rmt_rx.rx_config.filter_en = false;
 
-    // rmt_config(&rmt_rx);
-    // rmt_driver_install(rmt_rx.channel, rx_config->ring_buffer_size, 0);
+    rmt_config(&rmt_rx);
+    rmt_driver_install(rmt_rx.channel, rx_config->ring_buffer_size, 0);
 
-    // RingbufHandle_t rx_ring_buffer = NULL;
-    // rmt_get_ringbuf_handle(rx_channel, &rx_ring_buffer);
+    RingbufHandle_t rx_ring_buffer = NULL;
+    rmt_get_ringbuf_handle(rx_channel, &rx_ring_buffer);
     // End RX Setup
+
+    // Enable open drain on the pin.
+    gpio_set_direction(rx_config->input_pin, GPIO_MODE_INPUT_OUTPUT);
+    gpio_matrix_out(rx_config->input_pin, RMT_SIG_OUT0_IDX + tx_channel, 0, 0);
+    gpio_matrix_in(rx_config->input_pin, RMT_SIG_IN0_IDX + rx_channel, 0);
+
+
 
 
     bool enable_rumble = true;
@@ -166,42 +173,42 @@ static void gamecube_rx_task() {
     while (true) {
         while (!controller_connected) {
             // Stop trying to receive data.
-            // rmt_rx_stop(rx_channel);
+            rmt_rx_stop(rx_channel);
 
             // Send the polling command to the controller.
             bool wait_tx_done = true;
             rmt_write_items(tx_channel, CONSOLE_TO_CONTROLLER_DATA, cmd_size, wait_tx_done);
 
             // Listen for the controller's response.
-            // rmt_rx_start(rx_channel, 1);
+            rmt_rx_start(rx_channel, 1);
 
-            // size_t rx_size = 0;
+            size_t rx_size = 0;
 
-            // rmt_item32_t* item =
-            //     (rmt_item32_t*)xRingbufferReceive(rx_ring_buffer, &rx_size, 6 / portTICK_RATE_MS);
+            rmt_item32_t* item =
+                (rmt_item32_t*)xRingbufferReceive(rx_ring_buffer, &rx_size, 10 / portTICK_RATE_MS);
 
-            // if (item) {
-            //     // TODO(bschwind) - Only set this to true if we got a valid response.
-            //     controller_connected = true;
+            if (item) {
+                // TODO(bschwind) - Only set this to true if we got a valid response.
+                // controller_connected = true;
 
-            //     size_t num_items = rx_size / sizeof(rmt_item32_t);
-            //     printf("rx_size: %u bytes, %u items\n", rx_size, num_items);
+                size_t num_items = rx_size / sizeof(rmt_item32_t);
+                printf("rx_size: %u bytes, %u items\n", rx_size, num_items);
 
-            //     for (int i = 0; i < num_items; i++) {
-            //         uint16_t duration0 = ticks_to_us(item[i].duration0, clock_ticks_per_10_us);
-            //         uint16_t duration1 = ticks_to_us(item[i].duration1, clock_ticks_per_10_us);
+                for (int i = 0; i < num_items; i++) {
+                    uint16_t duration0 = ticks_to_us(item[i].duration0, clock_ticks_per_10_us);
+                    uint16_t duration1 = ticks_to_us(item[i].duration1, clock_ticks_per_10_us);
 
-            //         printf("duration0 (microseconds): %u, duration1 (microseconds): %u\n", duration0, duration1);
-            //     }
+                    printf("duration0 (microseconds): %u, duration1 (microseconds): %u\n", duration0, duration1);
+                }
 
-            //     vRingbufferReturnItem(rx_ring_buffer, (void*)item);
-            // } else {
-            //     // No response received in 6 ms, try again.
-            // }
+                vRingbufferReturnItem(rx_ring_buffer, (void*)item);
+            } else {
+                // No response received in 6 ms, try again.
+            }
         }
 
         // Stop trying to receive data.
-        // rmt_rx_stop(rx_channel);
+        rmt_rx_stop(rx_channel);
 
         // Send the polling command to the controller.
         bool wait_tx_done = true;
