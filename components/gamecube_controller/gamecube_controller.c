@@ -129,8 +129,7 @@ static void gamecube_rx_task() {
     rmt_rx.channel = rx_channel;
     rmt_rx.gpio_num = rx_config->input_pin;
     rmt_rx.clk_div = RMT_CLOCK_DIVIDER;
-    // TODO(jake): setting this to 7 led to RMT failure
-    rmt_rx.mem_block_num = 1; // One block has 64 * 32 bits, so 7 = 1792 bytes
+    rmt_rx.mem_block_num = 1;
     rmt_rx.flags = 0;
 
     rmt_rx.rx_config.idle_threshold = RMT_RX_IDLE_THRESHOLD_US;
