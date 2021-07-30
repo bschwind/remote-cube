@@ -143,13 +143,9 @@ static void gamecube_rx_task() {
     // rmt_get_ringbuf_handle(rx_channel, &rx_ring_buffer);
     // End RX Setup
 
-<<<<<<< HEAD
 
     bool enable_rumble = true;
     populate_command_data(CONSOLE_TO_CONTROLLER_COMMAND, 24, enable_rumble);
-=======
-    populate_command_data(CONSOLE_TO_CONTROLLER_COMMAND, 24, false);
->>>>>>> 06bfb1c (esp32c3 compilation support & cmake build system)
 
     // Basic logic:
     // while not connected:
