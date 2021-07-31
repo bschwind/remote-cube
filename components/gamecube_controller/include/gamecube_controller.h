@@ -47,11 +47,11 @@ esp_err_t gamecube_rx_start(gamecube_rx_config config);
 // Writes 8 bytes of controller data to dst, used for sending over the network.
 void write_controller_bytes(controller_data* controller, uint8_t* dst);
 
-// Reads GameCube controller data from a series of pulses from the RMT hardware module.
-void controller_from_pulses(rmt_item32_t* pulses, controller_data* controller);
-
 // Reads 8 bytes of controller data from src, which was received over the network.
 void controller_from_bytes(uint8_t* src, controller_data* controller);
+
+// Reads GameCube controller data from a series of pulses from the RMT hardware module.
+void controller_from_pulses(rmt_item32_t* pulses, controller_data* controller);
 
 // Prints out the controller info on the serial port.
 void print_controller_data(controller_data* controller);

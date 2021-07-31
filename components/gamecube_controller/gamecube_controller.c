@@ -100,30 +100,6 @@ void write_controller_bytes(controller_data* controller, uint8_t* dst) {
     dst[7] = controller->r_bumper;
 }
 
-// Reads GameCube controller data from a series of pulses from the RMT hardware module.
-void controller_from_pulses(rmt_item32_t* pulses, controller_data* controller) {
-    controller->start_button = pulses[28].duration0 == 1;
-    controller->y_button = pulses[29].duration0 == 1;
-    controller->x_button = pulses[30].duration0 == 1;
-    controller->b_button = pulses[31].duration0 == 1;
-    controller->a_button = pulses[32].duration0 == 1;
-
-    controller->l_button = pulses[34].duration0 == 1;
-    controller->r_button = pulses[35].duration0 == 1;
-    controller->z_button = pulses[36].duration0 == 1;
-    controller->dpad_up_button = pulses[37].duration0 == 1;
-    controller->dpad_down_button = pulses[38].duration0 == 1;
-    controller->dpad_right_button = pulses[39].duration0 == 1;
-    controller->dpad_left_button = pulses[40].duration0 == 1;
-
-    controller->joystick_x = read_byte(&pulses[41]);
-    controller->joystick_y = read_byte(&pulses[49]);
-    controller->c_stick_x = read_byte(&pulses[57]);
-    controller->c_stick_y = read_byte(&pulses[65]);
-    controller->l_bumper = read_byte(&pulses[73]);
-    controller->r_bumper = read_byte(&pulses[81]);
-}
-
 // Reads 8 bytes of controller data from src, which was received over the network.
 void controller_from_bytes(uint8_t* src, controller_data* controller) {
     uint8_t bit_counter = 0;
@@ -150,6 +126,30 @@ void controller_from_bytes(uint8_t* src, controller_data* controller) {
     controller->c_stick_y = src[5];
     controller->l_bumper = src[6];
     controller->r_bumper = src[7];
+}
+
+// Reads GameCube controller data from a series of pulses from the RMT hardware module.
+void controller_from_pulses(rmt_item32_t* pulses, controller_data* controller) {
+    controller->start_button = pulses[28].duration0 == 1;
+    controller->y_button = pulses[29].duration0 == 1;
+    controller->x_button = pulses[30].duration0 == 1;
+    controller->b_button = pulses[31].duration0 == 1;
+    controller->a_button = pulses[32].duration0 == 1;
+
+    controller->l_button = pulses[34].duration0 == 1;
+    controller->r_button = pulses[35].duration0 == 1;
+    controller->z_button = pulses[36].duration0 == 1;
+    controller->dpad_up_button = pulses[37].duration0 == 1;
+    controller->dpad_down_button = pulses[38].duration0 == 1;
+    controller->dpad_right_button = pulses[39].duration0 == 1;
+    controller->dpad_left_button = pulses[40].duration0 == 1;
+
+    controller->joystick_x = read_byte(&pulses[41]);
+    controller->joystick_y = read_byte(&pulses[49]);
+    controller->c_stick_x = read_byte(&pulses[57]);
+    controller->c_stick_y = read_byte(&pulses[65]);
+    controller->l_bumper = read_byte(&pulses[73]);
+    controller->r_bumper = read_byte(&pulses[81]);
 }
 
 void print_controller_data(controller_data* controller) {
