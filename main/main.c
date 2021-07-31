@@ -21,5 +21,4 @@ void app_main(void) {
         printf("GameCube rx start failed: %i\n", err);
         return;
     }
-
 }

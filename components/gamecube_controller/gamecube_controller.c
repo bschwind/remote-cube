@@ -57,6 +57,7 @@ static void populate_command_data(uint32_t data, uint8_t num_bits, bool enable_r
     CONSOLE_TO_CONTROLLER_DATA[num_bits] = one_bit;
 }
 
+// Reads a byte from the GameCube controller pulse data.
 static uint8_t read_byte(rmt_item32_t* items) {
     uint8_t val = 0;
 
@@ -66,6 +67,112 @@ static uint8_t read_byte(rmt_item32_t* items) {
     }
 
     return val;
+}
+
+// Writes 8 bytes of controller data to dst, used for sending over the network.
+void write_controller_bytes(controller_data* controller, uint8_t* dst) {
+    uint8_t byte_0 = 0;
+    uint8_t bit_counter = 0;
+
+    byte_0 |= (controller->start_button << bit_counter++);
+    byte_0 |= (controller->y_button << bit_counter++);
+    byte_0 |= (controller->x_button << bit_counter++);
+    byte_0 |= (controller->b_button << bit_counter++);
+    byte_0 |= (controller->a_button << bit_counter++);
+    byte_0 |= (controller->l_button << bit_counter++);
+    byte_0 |= (controller->r_button << bit_counter++);
+    byte_0 |= (controller->z_button << bit_counter++);
+
+    uint8_t byte_1 = 0;
+    bit_counter = 0;
+    byte_1 |= (controller->dpad_up_button << bit_counter++);
+    byte_1 |= (controller->dpad_down_button << bit_counter++);
+    byte_1 |= (controller->dpad_right_button << bit_counter++);
+    byte_1 |= (controller->dpad_left_button << bit_counter++);
+
+    dst[0] = byte_0;
+    dst[1] = byte_1;
+    dst[2] = controller->joystick_x;
+    dst[3] = controller->joystick_y;
+    dst[4] = controller->c_stick_x;
+    dst[5] = controller->c_stick_y;
+    dst[6] = controller->l_bumper;
+    dst[7] = controller->r_bumper;
+}
+
+// Reads GameCube controller data from a series of pulses from the RMT hardware module.
+void controller_from_pulses(rmt_item32_t* pulses, controller_data* controller) {
+    controller->start_button = pulses[28].duration0 == 1;
+    controller->y_button = pulses[29].duration0 == 1;
+    controller->x_button = pulses[30].duration0 == 1;
+    controller->b_button = pulses[31].duration0 == 1;
+    controller->a_button = pulses[32].duration0 == 1;
+
+    controller->l_button = pulses[34].duration0 == 1;
+    controller->r_button = pulses[35].duration0 == 1;
+    controller->z_button = pulses[36].duration0 == 1;
+    controller->dpad_up_button = pulses[37].duration0 == 1;
+    controller->dpad_down_button = pulses[38].duration0 == 1;
+    controller->dpad_right_button = pulses[39].duration0 == 1;
+    controller->dpad_left_button = pulses[40].duration0 == 1;
+
+    controller->joystick_x = read_byte(&pulses[41]);
+    controller->joystick_y = read_byte(&pulses[49]);
+    controller->c_stick_x = read_byte(&pulses[57]);
+    controller->c_stick_y = read_byte(&pulses[65]);
+    controller->l_bumper = read_byte(&pulses[73]);
+    controller->r_bumper = read_byte(&pulses[81]);
+}
+
+// Reads 8 bytes of controller data from src, which was received over the network.
+void controller_from_bytes(uint8_t* src, controller_data* controller) {
+    uint8_t bit_counter = 0;
+
+    controller->start_button = (1 << bit_counter++) & (src[0] == 1);
+    controller->y_button = (1 << bit_counter++) & (src[0] == 1);
+    controller->x_button = (1 << bit_counter++) & (src[0] == 1);
+    controller->b_button = (1 << bit_counter++) & (src[0] == 1);
+    controller->a_button = (1 << bit_counter++) & (src[0] == 1);
+    controller->l_button = (1 << bit_counter++) & (src[0] == 1);
+    controller->r_button = (1 << bit_counter++) & (src[0] == 1);
+    controller->z_button = (1 << bit_counter++) & (src[0] == 1);
+
+    bit_counter = 0;
+
+    controller->dpad_up_button = (1 << bit_counter++) & (src[1] == 1);
+    controller->dpad_down_button = (1 << bit_counter++) & (src[1] == 1);
+    controller->dpad_right_button = (1 << bit_counter++) & (src[1] == 1);
+    controller->dpad_left_button = (1 << bit_counter++) & (src[1] == 1);
+
+    controller->joystick_x = src[2];
+    controller->joystick_y = src[3];
+    controller->c_stick_x = src[4];
+    controller->c_stick_y = src[5];
+    controller->l_bumper = src[6];
+    controller->r_bumper = src[7];
+}
+
+void print_controller_data(controller_data* controller) {
+    printf("S: %u, Y: %u, X: %u, B: %u, A: %u, L: %u, R: %u, Z: %u, ⬆️: %u, ⬇️: %u, ➡️: %u, ⬅️: %u, Joystick: (%u, %u), C-Stick: (%u, %u), Bumps: (%u, %u)\n",
+        controller->start_button,
+        controller->y_button,
+        controller->x_button,
+        controller->b_button,
+        controller->a_button,
+        controller->l_button,
+        controller->r_button,
+        controller->z_button,
+        controller->dpad_up_button,
+        controller->dpad_down_button,
+        controller->dpad_right_button,
+        controller->dpad_left_button,
+        controller->joystick_x,
+        controller->joystick_y,
+        controller->c_stick_x,
+        controller->c_stick_y,
+        controller->l_bumper,
+        controller->r_bumper
+    );
 }
 
 static void gamecube_rx_task() {
@@ -173,48 +280,13 @@ static void gamecube_rx_task() {
         if (item) {
             size_t num_items = rx_size / sizeof(rmt_item32_t);
 
+            // Item includes both the console command and the controller response, as the RX
+            // channel is always listening and the protocol shares one wire.
             if (num_items >= 90) {
-                bool start_button = item[28].duration0 == 1;
-                bool y_button = item[29].duration0 == 1;
-                bool x_button = item[30].duration0 == 1;
-                bool b_button = item[31].duration0 == 1;
-                bool a_button = item[32].duration0 == 1;
+                controller_data data;
 
-                bool l_button = item[34].duration0 == 1;
-                bool r_button = item[35].duration0 == 1;
-                bool z_button = item[36].duration0 == 1;
-                bool dpad_up_button = item[37].duration0 == 1;
-                bool dpad_down_button = item[38].duration0 == 1;
-                bool dpad_right_button = item[39].duration0 == 1;
-                bool dpad_left_button = item[40].duration0 == 1;
-
-                uint8_t joystick_x = read_byte(&item[41]);
-                uint8_t joystick_y = read_byte(&item[49]);
-                uint8_t c_stick_x = read_byte(&item[57]);
-                uint8_t c_stick_y = read_byte(&item[65]);
-                uint8_t l_bumper = read_byte(&item[73]);
-                uint8_t r_bumper = read_byte(&item[81]);
-
-                printf("S: %u, Y: %u, X: %u, B: %u, A: %u, L: %u, R: %u, Z: %u, ⬆️: %u, ⬇️: %u, ➡️: %u, ⬅️: %u, Joystick: (%u, %u), C-Stick: (%u, %u), Bumps: (%u, %u)\n",
-                    start_button,
-                    y_button,
-                    x_button,
-                    b_button,
-                    a_button,
-                    l_button,
-                    r_button,
-                    z_button,
-                    dpad_up_button,
-                    dpad_down_button,
-                    dpad_right_button,
-                    dpad_left_button,
-                    joystick_x,
-                    joystick_y,
-                    c_stick_x,
-                    c_stick_y,
-                    l_bumper,
-                    r_bumper
-                );
+                controller_from_pulses(&item[0], &data);
+                print_controller_data(&data);
             }
 
             vRingbufferReturnItem(rx_ring_buffer, (void*)item);
