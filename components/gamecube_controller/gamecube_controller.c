@@ -437,7 +437,7 @@ static void gamecube_tx_task() {
     size_t cmd_size = sizeof(CONSOLE_TO_CONTROLLER_DATA) / sizeof(CONSOLE_TO_CONTROLLER_DATA[0]);
 
     // Listen for the controller's response.
-    rmt_rx_start(rx_channel, 1);
+    rmt_rx_start(rx_channel, true);
 
     controller_data controller_msg;
     rmt_item32_t out_pulses[81];
