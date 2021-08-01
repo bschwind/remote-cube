@@ -2,17 +2,32 @@
 #include "freertos/task.h"
 #include "gamecube_controller.h"
 #include <string.h>
+#include "esp_log.h"
 #include <sys/time.h>
 
 #define RMT_CLOCK_SPEED 80000000
 #define RMT_CLOCK_DIVIDER 80 // This evaluates to 1 RMT tick = 1 microsecond
 #define RMT_RX_IDLE_THRESHOLD_US 9500 // Idle threshold for the remote receiver
 
+static const char *TAG = "gamecube";
 static gamecube_rx_config* rx_config = NULL;
 static rmt_item32_t CONSOLE_TO_CONTROLLER_DATA[25];
 
 // Why does this differ from the documentation?
 static uint32_t CONSOLE_TO_CONTROLLER_COMMAND = 0b010000000000001100000000;
+static rmt_item32_t zero_bit = {
+    .duration0 = 3, // 3 microseconds low
+    .level0 = 0,
+    .duration1 = 1, // 1 microsecond high
+    .level1 = 1,
+};
+
+static rmt_item32_t one_bit = {
+    .duration0 = 1, // 1 microseocond low
+    .level0 = 0,
+    .duration1 = 3, // 3 microseconds high
+    .level1 = 1,
+};
 
 static void populate_command_data(uint32_t data, uint8_t num_bits, bool enable_rumble) {
     if (num_bits > 24) {
@@ -20,19 +35,6 @@ static void populate_command_data(uint32_t data, uint8_t num_bits, bool enable_r
         return;
     }
 
-    rmt_item32_t zero_bit = {
-        .duration0 = 3, // 3 microseconds low
-        .level0 = 0,
-        .duration1 = 1, // 1 microsecond high
-        .level1 = 1,
-    };
-
-    rmt_item32_t one_bit = {
-        .duration0 = 1, // 1 microseocond low
-        .level0 = 0,
-        .duration1 = 3, // 3 microseconds high
-        .level1 = 1,
-    };
 
 
     int bit_counter = num_bits - 1;
@@ -64,9 +66,28 @@ static uint8_t read_byte(rmt_item32_t* items) {
     for (int i = 0; i < 8; i++) {
         bool is_one = items[i].duration0 == 1;
         val |= (is_one << (7 - i));
+
+        ESP_LOGI(TAG, "dur0: %d, dur1: %d", items[i].duration0, items[i].duration1);
+
+        // if (!(items[i].duration0 == 1 && items[i].duration1 == 3)
+        //     && !(items[i].duration0 == 3 && items[i].duration1 == 1)) {
+        //     ESP_LOGE(TAG, "ABNRRIORORORMAL CONTROLLER DATA");
+        // }
     }
 
     return val;
+}
+
+// Reads a byte from the GameCube controller pulse data.
+// fuck you brian
+static void write_byte(uint8_t b, rmt_item32_t* items) {
+    printf("write_byte(%d, ", b);
+    for (int i = 0; i < 8; i++) {
+        bool is_one = ((b >> (7-i)) & 1) == 1;
+        items[i] = is_one ? one_bit : zero_bit;
+        printf("%d", is_one);
+    }
+    printf(")\n");
 }
 
 // Writes 8 bytes of controller data to dst, used for sending over the network.
@@ -150,6 +171,33 @@ void controller_from_pulses(rmt_item32_t* pulses, controller_data* controller) {
     controller->c_stick_y = read_byte(&pulses[65]);
     controller->l_bumper = read_byte(&pulses[73]);
     controller->r_bumper = read_byte(&pulses[81]);
+}
+
+void controller_to_pulses(controller_data* controller, rmt_item32_t* pulses) {
+    pulses[0] = zero_bit;
+    pulses[1] = zero_bit;
+    pulses[2] = zero_bit;
+    pulses[3] = controller->start_button ? one_bit : zero_bit;
+    pulses[4] = controller->y_button ? one_bit : zero_bit;
+    pulses[5] = controller->x_button ? one_bit : zero_bit;
+    pulses[6] = controller->b_button ? one_bit : zero_bit;
+    pulses[7] = controller->a_button ? one_bit : zero_bit;
+    pulses[8] = one_bit;
+    pulses[9] = controller->l_button ? one_bit : zero_bit;
+    pulses[10] = controller->r_button ? one_bit : zero_bit;
+    pulses[11] = controller->z_button ? one_bit : zero_bit;
+    pulses[12] = controller->dpad_up_button   ? one_bit : zero_bit;
+    pulses[13] = controller->dpad_down_button ? one_bit : zero_bit;
+    pulses[14] = controller->dpad_right_button ? one_bit : zero_bit;
+    pulses[15] = controller->dpad_left_button ? one_bit : zero_bit;
+
+    write_byte(controller->joystick_x, &pulses[16]);
+    write_byte(controller->joystick_y, &pulses[24]);
+    write_byte(controller->c_stick_x, &pulses[32]);
+    write_byte(controller->c_stick_y, &pulses[40]);
+    write_byte(controller->l_bumper, &pulses[48]);
+    write_byte(controller->r_bumper, &pulses[56]);
+    pulses[64] = one_bit;
 }
 
 void print_controller_data(controller_data* controller) {
@@ -239,7 +287,7 @@ static void gamecube_rx_task() {
     rmt_rx.channel = rx_channel;
     rmt_rx.gpio_num = rx_config->input_pin;
     rmt_rx.clk_div = RMT_CLOCK_DIVIDER;
-    rmt_rx.mem_block_num = 4;
+    rmt_rx.mem_block_num = 1;
     rmt_rx.flags = 0;
 
     rmt_rx.rx_config.idle_threshold = RMT_RX_IDLE_THRESHOLD_US / 10 * (clock_ticks_per_10_us);
@@ -299,11 +347,183 @@ static void gamecube_rx_task() {
     vTaskDelete(NULL);
 }
 
+static void gamecube_tx_task() {
+    int tx_channel = 0; // for ESP32-C3, 0-1 are valid TX channels
+    int rx_channel = 2; // for ESP32-C3, 2-3 are valid RX channels
+
+    // References for 1-wire implementation for GameCube data protocol:
+    // https://github.com/espressif/esp-idf/issues/5237
+    // https://github.com/espressif/esp-idf/issues/4608
+
+    // Max ticks per item = 32,768 (rmt_item32_t durations are in ticks and use 15 bits)
+
+    // clock divide = 80
+    // 1MHz = 0.000001 seconds per tick
+    // 1 tick = 1000 nanoseconds
+    // 10 ticks = 10000 nanoseconds
+    // max us per item = 32.77 ms
+
+    uint16_t clock_ticks_per_10_us = (RMT_CLOCK_SPEED / RMT_CLOCK_DIVIDER) / 100000;
+    // uint16_t ns_per_tick = 1000000000 / (RMT_CLOCK_SPEED / RMT_CLOCK_DIVIDER);
+    // uint16_t us_per_tick = 1000000 / (RMT_CLOCK_SPEED / RMT_CLOCK_DIVIDER);
+    // uint16_t clock_ticks_per_s = (RMT_CLOCK_SPEED / RMT_CLOCK_DIVIDER);
+    uint16_t clock_ticks_per_us = (RMT_CLOCK_SPEED / RMT_CLOCK_DIVIDER) / 1000000;
+
+    if (clock_ticks_per_10_us == 0) {
+        printf("clock_ticks_per_10_us is 0, can't start GameCube controller receiver\n");
+        vTaskDelete(NULL);
+        return;
+    }
+
+    printf("RX: clock_ticks_per_10_us: %u\n", clock_ticks_per_10_us);
+    printf("RX: clock_ticks_per_us: %u\n", clock_ticks_per_us);
+
+    uint32_t max_us_per_item = ((uint32_t)0x7FFF * 10) /
+                               clock_ticks_per_10_us; // (2^15 ticks * 10) / clock_ticks_per_10_us
+    printf("RX: max_us_per_item: %u\n", max_us_per_item);
+
+    // TX Setup
+    rmt_config_t rmt_tx;
+
+    rmt_tx.rmt_mode = RMT_MODE_TX;
+    rmt_tx.channel = tx_channel;
+    rmt_tx.gpio_num = rx_config->input_pin;
+    rmt_tx.clk_div = RMT_CLOCK_DIVIDER;
+    rmt_tx.mem_block_num = 1;
+    rmt_tx.flags = 0;
+
+    rmt_tx.tx_config.idle_level = 1;
+    rmt_tx.tx_config.carrier_en = false;
+    rmt_tx.tx_config.loop_en = false;
+    rmt_tx.tx_config.idle_output_en = true;
+
+    printf("RX: pre-config\n");
+    rmt_config(&rmt_tx);
+    printf("RX: pre-install\n");
+    rmt_driver_install(tx_channel, 0, 0);
+    printf("RX: post-install\n");
+    // End TX Setup
+
+    // RX Setup
+    rmt_config_t rmt_rx;
+
+    rmt_rx.rmt_mode = RMT_MODE_RX;
+    rmt_rx.channel = rx_channel;
+    rmt_rx.gpio_num = rx_config->input_pin;
+    rmt_rx.clk_div = RMT_CLOCK_DIVIDER;
+    rmt_rx.mem_block_num = 1;
+    rmt_rx.flags = 0;
+
+    rmt_rx.rx_config.idle_threshold = 3000 / 10 * (clock_ticks_per_10_us);
+    rmt_rx.rx_config.filter_ticks_thresh = 0;
+    rmt_rx.rx_config.filter_en = false;
+
+    rmt_config(&rmt_rx);
+    rmt_driver_install(rmt_rx.channel, rx_config->ring_buffer_size, 0);
+
+    RingbufHandle_t rx_ring_buffer = NULL;
+    rmt_get_ringbuf_handle(rx_channel, &rx_ring_buffer);
+    // End RX Setup
+
+    // Enable open drain on the pin.
+    gpio_set_direction(rx_config->input_pin, GPIO_MODE_INPUT_OUTPUT);
+    gpio_matrix_out(rx_config->input_pin, RMT_SIG_OUT0_IDX + tx_channel, 0, 0);
+    gpio_matrix_in(rx_config->input_pin, RMT_SIG_IN0_IDX + rx_channel, 0);
+
+    // Populate the "console" command.
+    bool enable_rumble = false;
+    populate_command_data(CONSOLE_TO_CONTROLLER_COMMAND, 24, enable_rumble);
+
+    size_t cmd_size = sizeof(CONSOLE_TO_CONTROLLER_DATA) / sizeof(CONSOLE_TO_CONTROLLER_DATA[0]);
+
+    // Listen for the controller's response.
+    rmt_rx_start(rx_channel, 1);
+
+    controller_data controller_msg;
+    rmt_item32_t out_pulses[81];
+
+    uint8_t rmt_subtract = 0;
+    while (true) {
+        size_t rx_size = 0;
+        rmt_item32_t* item =
+            (rmt_item32_t*)xRingbufferReceive(rx_ring_buffer, &rx_size, 100);
+
+        if (item) {
+            size_t num_items = rx_size / sizeof(rmt_item32_t);
+
+            // Item includes both the console command and the controller response, as the RX
+            // channel is always listening and the protocol shares one wire.
+            ESP_LOGD(TAG, "rmt num_items %d", num_items);
+            if (num_items == 9) {
+                uint8_t msg = read_byte(item);
+                if (msg == 0x00 || msg == 0xff) {
+                    ESP_LOGI(TAG, "CONSOLE PROBE (0x%x)", msg);
+                    write_byte(0x09, &out_pulses[0]);
+                    write_byte(0x00, &out_pulses[8]);
+                    write_byte(0x03, &out_pulses[16]);
+                    out_pulses[24] = one_bit;
+                    rmt_write_items(tx_channel, &out_pulses, 25, true);
+                    rmt_subtract += 25;
+                } else if (msg == 0x41 || msg == 0x42) {
+                    ESP_LOGI(TAG, "CONSOLE PROBE ORIGIN (0x%x)", msg);
+                    if (xQueueReceive(rx_config->gamecube_data_queue, (void *)&controller_msg, 0)) {
+                        controller_msg.start_button = 1;
+                        controller_msg.y_button = 1;
+                        controller_msg.x_button = 1;
+                        controller_msg.b_button = 1;
+                        controller_msg.a_button = 1;
+                        controller_msg.l_button = 1;
+                        controller_msg.r_button = 1;
+                        controller_msg.z_button = 1;
+                        controller_msg.dpad_up_button = 1;
+                        controller_msg.dpad_down_button = 1;
+                        controller_msg.dpad_right_button = 1;
+                        controller_msg.dpad_left_button = 1;
+                        controller_to_pulses(&controller_msg, &out_pulses);
+                        write_byte(0x00, &out_pulses[64]);
+                        write_byte(0x00, &out_pulses[72]);
+                        out_pulses[80] = one_bit;
+
+                        rmt_write_items(tx_channel, &out_pulses, 81, true);
+                        rmt_subtract += 81;
+                    }
+                } else {
+                    ESP_LOGW(TAG, "UNRECOGNIZED PROBE 0x%x", msg);
+                }
+            } else if (num_items >= 25) {
+
+                uint8_t msg = read_byte(&item[25]);
+                ESP_LOGE(TAG, "prospective probe msg 0x%x", msg);
+                if (xQueueReceive(rx_config->gamecube_data_queue, (void *)&controller_msg, 0)) {
+                    controller_to_pulses(&controller_msg, &out_pulses);
+                    rmt_write_items(tx_channel, &out_pulses, 65, true);
+                    rmt_subtract += 65;
+                }
+            }
+
+            vRingbufferReturnItem(rx_ring_buffer, (void*)item);
+        } else {
+            // No response received, try again.
+        }
+    }
+
+    vTaskDelete(NULL);
+}
+
 esp_err_t gamecube_rx_start(gamecube_rx_config config) {
     rx_config = malloc(sizeof(gamecube_rx_config));
     memcpy(rx_config, &config, sizeof(gamecube_rx_config));
 
     xTaskCreate(gamecube_rx_task, "gamecube_rx_task", 1024 * 2, NULL, 10, NULL);
+
+    return ESP_OK;
+}
+
+esp_err_t gamecube_tx_start(gamecube_rx_config config) {
+    rx_config = malloc(sizeof(gamecube_rx_config));
+    memcpy(rx_config, &config, sizeof(gamecube_rx_config));
+
+    xTaskCreate(gamecube_tx_task, "gamecube_tx_task", 1024 * 4, NULL, 10, NULL);
 
     return ESP_OK;
 }

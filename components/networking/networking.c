@@ -20,7 +20,7 @@
 #define WIFI_MAXIMUM_RETRY  CONFIG_ESP_MAXIMUM_RETRY
 #define HOST_IP_ADDR        CONFIG_ESP_SERVER_IP
 #define PORT                CONFIG_ESP_SERVER_PORT
-#define IS_SERVER           CONFIG_ESP_SERVER_MODE
+#define IS_SERVER           1
 
 /* FreeRTOS event group to signal when we are connected*/
 static EventGroupHandle_t s_wifi_event_group;
