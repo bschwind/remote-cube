@@ -165,6 +165,8 @@ static void udp_client_task(void *pvParameters)
                     break;
                 }
             }
+
+            vTaskDelay(0);
         }
 
         if (sock != -1) {
