@@ -13,6 +13,8 @@
 #include "lwip/sockets.h"
 #include <lwip/netdb.h>
 
+#include "gamecube_controller.h"
+
 #define WIFI_SSID           CONFIG_ESP_WIFI_SSID
 #define WIFI_PASS           CONFIG_ESP_WIFI_PASSWORD
 #define WIFI_MAXIMUM_RETRY  CONFIG_ESP_MAXIMUM_RETRY
@@ -145,8 +147,6 @@ static void udp_server_task(void *pvParameters)
 
 static void udp_client_task(void *pvParameters)
 {
-    char rx_buffer[128];
-    char host_ip[] = HOST_IP_ADDR;
     QueueHandle_t queue = (QueueHandle_t)pvParameters;
     int addr_family = 0;
     int ip_protocol = 0;
@@ -166,37 +166,16 @@ static void udp_client_task(void *pvParameters)
         }
         ESP_LOGI(TAG, "Socket created, sending to %s:%d", HOST_IP_ADDR, PORT);
 
-        uint8_t rcv_msg[8] = {0};
+        controller_data controller_msg;
+        uint8_t serialized[8] = {0};
         while (1) {
-            if (xQueueReceive(queue, (void *)&rcv_msg, portMAX_DELAY) == pdTRUE) {
-                int err = sendto(sock, &rcv_msg, 8, 0, (struct sockaddr *)&dest_addr, sizeof(dest_addr));
+            if (xQueueReceive(queue, (void *)&controller_msg, portMAX_DELAY)) {
+                write_controller_bytes(&controller_msg, (uint8_t *)&serialized);
+                int err = sendto(sock, &serialized, sizeof(serialized), 0, (struct sockaddr *)&dest_addr, sizeof(dest_addr));
                 if (err < 0) {
                     ESP_LOGE(TAG, "Error occurred during sending: errno %d", errno);
                     break;
                 }
-                ESP_LOGI(TAG, "Message sent");
-
-                struct sockaddr_storage source_addr; // Large enough for both IPv4 or IPv6
-                socklen_t socklen = sizeof(source_addr);
-                int len = recvfrom(sock, rx_buffer, sizeof(rx_buffer) - 1, 0, (struct sockaddr *)&source_addr, &socklen);
-
-                // Error occurred during receiving
-                if (len < 0) {
-                    ESP_LOGE(TAG, "recvfrom failed: errno %d", errno);
-                    break;
-                }
-                // Data received
-                else {
-                    rx_buffer[len] = 0; // Null-terminate whatever we received and treat like a string
-                    ESP_LOGI(TAG, "Received %d bytes from %s:", len, host_ip);
-                    ESP_LOGI(TAG, "%s", rx_buffer);
-                    if (strncmp(rx_buffer, "OK: ", 4) == 0) {
-                        ESP_LOGI(TAG, "Received expected message, reconnecting");
-                        break;
-                    }
-                }
-
-                vTaskDelay(2000 / portTICK_PERIOD_MS);
             }
         }
 

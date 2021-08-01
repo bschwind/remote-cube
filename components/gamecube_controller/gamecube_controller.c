@@ -286,18 +286,14 @@ static void gamecube_rx_task() {
                 controller_data data;
 
                 controller_from_pulses(&item[0], &data);
-                print_controller_data(&data);
 
-                // TODO(bschwind) - Send `data` over a queue.
-                // xQueueSendToBack(rx_config->gamecube_data_queue, &data, (TickType_t)0);
+                xQueueSendToBack(rx_config->gamecube_data_queue, &data, (TickType_t)0);
             }
 
             vRingbufferReturnItem(rx_ring_buffer, (void*)item);
         } else {
             // No response received, try again.
         }
-
-        // vTaskDelay(4); // TODO(bschwind) - Double check this value.
     }
 
     vTaskDelete(NULL);

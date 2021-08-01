@@ -19,11 +19,11 @@ void app_main(void) {
             .gamecube_data_queue = queue,
             .ring_buffer_size = 3000};
         esp_err_t err = gamecube_rx_start(rx_config);
+        if (err) {
+            printf("GameCube rx start failed: %i\n", err);
+            return;
+        }
     }
 
 
-    if (err) {
-        printf("GameCube rx start failed: %i\n", err);
-        return;
-    }
 }
