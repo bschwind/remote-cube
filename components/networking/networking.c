@@ -288,7 +288,7 @@ static void wifi_init_sta(void *pvParameters)
     }
 }
 
-void networking_init(bool sending, QueueHandle_t packet_queue)
+void networking_init(QueueHandle_t packet_queue)
 {
     //Initialize NVS
     esp_err_t ret = nvs_flash_init();
