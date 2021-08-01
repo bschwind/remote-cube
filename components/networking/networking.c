@@ -88,16 +88,6 @@ static void udp_server_task(void *pvParameters)
         }
         ESP_LOGI(TAG, "Socket created");
 
-#if defined(CONFIG_EXAMPLE_IPV4) && defined(CONFIG_EXAMPLE_IPV6)
-        if (addr_family == AF_INET6) {
-            // Note that by default IPV6 binds to both protocols, it is must be disabled
-            // if both protocols used at the same time (used in CI)
-            int opt = 1;
-            setsockopt(sock, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt));
-            setsockopt(sock, IPPROTO_IPV6, IPV6_V6ONLY, &opt, sizeof(opt));
-        }
-#endif
-
         int err = bind(sock, (struct sockaddr *)&dest_addr, sizeof(dest_addr));
         if (err < 0) {
             ESP_LOGE(TAG, "Socket unable to bind: errno %d", errno);
@@ -105,8 +95,6 @@ static void udp_server_task(void *pvParameters)
         ESP_LOGI(TAG, "Socket bound, port %d", PORT);
 
         while (1) {
-
-            ESP_LOGI(TAG, "Waiting for data");
             struct sockaddr_storage source_addr; // Large enough for both IPv4 or IPv6
             socklen_t socklen = sizeof(source_addr);
             int len = recvfrom(sock, rx_buffer, sizeof(rx_buffer) - 1, 0, (struct sockaddr *)&source_addr, &socklen);
@@ -123,17 +111,17 @@ static void udp_server_task(void *pvParameters)
                     inet6_ntoa_r(((struct sockaddr_in6 *)&source_addr)->sin6_addr, addr_str, sizeof(addr_str) - 1);
                 }
 
-                rx_buffer[len] = 0; // Null-terminate whatever we received and treat like a string...
-                ESP_LOGI(TAG, "Received %d bytes from %s:", len, addr_str);
-                ESP_LOGI(TAG, "%s", rx_buffer);
-
                 if (len == 8) {
-                    xQueueSend(queue, (void *)&rx_buffer, 10);
-                    ESP_LOGI(TAG, "Sent to queue!");
+                    controller_data controller_msg;
+                    controller_from_bytes(&rx_buffer, &controller_msg);
+                    print_controller_data(&controller_msg);
+                    // xQueueSend(queue, (void *)&rx_buffer, 10);
+                    // ESP_LOGI(TAG, "Sent to queue!");
                 } else {
                     ESP_LOGW(TAG, "wrong len: wanted 8, was %d", len);
                 }
             }
+            vTaskDelay(1);
         }
 
         if (sock != -1) {

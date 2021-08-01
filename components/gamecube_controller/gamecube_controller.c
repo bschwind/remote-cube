@@ -104,21 +104,21 @@ void write_controller_bytes(controller_data* controller, uint8_t* dst) {
 void controller_from_bytes(uint8_t* src, controller_data* controller) {
     uint8_t bit_counter = 0;
 
-    controller->start_button = (1 << bit_counter++) & (src[0] == 1);
-    controller->y_button = (1 << bit_counter++) & (src[0] == 1);
-    controller->x_button = (1 << bit_counter++) & (src[0] == 1);
-    controller->b_button = (1 << bit_counter++) & (src[0] == 1);
-    controller->a_button = (1 << bit_counter++) & (src[0] == 1);
-    controller->l_button = (1 << bit_counter++) & (src[0] == 1);
-    controller->r_button = (1 << bit_counter++) & (src[0] == 1);
-    controller->z_button = (1 << bit_counter++) & (src[0] == 1);
+    controller->start_button = ((1 << bit_counter++) & src[0]) != 0;
+    controller->y_button = ((1 << bit_counter++) & src[0]) != 0;
+    controller->x_button = ((1 << bit_counter++) & src[0]) != 0;
+    controller->b_button = ((1 << bit_counter++) & src[0]) != 0;
+    controller->a_button = ((1 << bit_counter++) & src[0]) != 0;
+    controller->l_button = ((1 << bit_counter++) & src[0]) != 0;
+    controller->r_button = ((1 << bit_counter++) & src[0]) != 0;
+    controller->z_button = ((1 << bit_counter++) & src[0]) != 0;
 
     bit_counter = 0;
 
-    controller->dpad_up_button = (1 << bit_counter++) & (src[1] == 1);
-    controller->dpad_down_button = (1 << bit_counter++) & (src[1] == 1);
-    controller->dpad_right_button = (1 << bit_counter++) & (src[1] == 1);
-    controller->dpad_left_button = (1 << bit_counter++) & (src[1] == 1);
+    controller->dpad_up_button = ((1 << bit_counter++) & src[1]) != 0;
+    controller->dpad_down_button = ((1 << bit_counter++) & src[1]) != 0;
+    controller->dpad_right_button = ((1 << bit_counter++) & src[1]) != 0;
+    controller->dpad_left_button = ((1 << bit_counter++) & src[1]) != 0;
 
     controller->joystick_x = src[2];
     controller->joystick_y = src[3];
