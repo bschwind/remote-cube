@@ -1,5 +1,7 @@
 # Remote Cube
 
+**Note:** This project is still a work-in-progress. Reading from the controller works, but pretending to be a controller is still in ongoing development.
+
 An ESP32-based project for reading/writing GameCube controller signals and sending them over a network.
 
 ## Clone
