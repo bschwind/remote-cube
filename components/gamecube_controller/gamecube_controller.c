@@ -311,7 +311,7 @@ static void gamecube_rx_task() {
     rmt_rx.channel = rx_channel;
     rmt_rx.gpio_num = rx_config->input_pin;
     rmt_rx.clk_div = RMT_CLOCK_DIVIDER;
-    rmt_rx.mem_block_num = 1;
+    rmt_rx.mem_block_num = 2;
     rmt_rx.flags = 0;
 
     rmt_rx.rx_config.idle_threshold = RMT_RX_IDLE_THRESHOLD_US / 10 * (clock_ticks_per_10_us);
@@ -325,8 +325,8 @@ static void gamecube_rx_task() {
     rmt_get_ringbuf_handle(rx_channel, &rx_ring_buffer);
     // End RX Setup
 
-    // Enable open drain on the pin.
-    gpio_set_direction(rx_config->input_pin, GPIO_MODE_INPUT_OUTPUT_OD);
+    // Set the pin to both input and output mode, but not open drain.
+    gpio_set_direction(rx_config->input_pin, GPIO_MODE_INPUT_OUTPUT);
     gpio_matrix_out(rx_config->input_pin, RMT_SIG_OUT0_IDX + tx_channel, 0, 0);
     gpio_matrix_in(rx_config->input_pin, RMT_SIG_IN0_IDX + rx_channel, 0);
 
