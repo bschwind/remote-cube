@@ -24,7 +24,7 @@ static const rmt_item32_t one_bit = {
     .level1 = 1,
 };
 
-// 0b010000000000001100000000
+// 01000000 00000011 00000000 - 0x40, 0x03, 0x00
 static rmt_item32_t CONSOLE_TO_CONTROLLER_DATA[25] = {
     zero_bit,
     one_bit,
@@ -56,6 +56,7 @@ static rmt_item32_t CONSOLE_TO_CONTROLLER_DATA[25] = {
     one_bit
 };
 
+// 00001001 00000000 00000011 - 0x09, 0x00, 0x03
 static rmt_item32_t CONTROLLER_PROBE_RESPONSE[25] = {
     zero_bit,
     zero_bit,
@@ -196,7 +197,7 @@ void controller_from_pulses(rmt_item32_t* pulses, controller_data* controller) {
     controller->r_bumper = read_byte(&pulses[81]);
 }
 
-void controller_to_pulses(controller_data* controller, rmt_item32_t* pulses) {
+void IRAM_ATTR controller_to_pulses(controller_data* controller, rmt_item32_t* pulses) {
     pulses[0] = zero_bit;
     pulses[1] = zero_bit;
     pulses[2] = zero_bit;
@@ -325,7 +326,7 @@ static void gamecube_rx_task() {
     // End RX Setup
 
     // Enable open drain on the pin.
-    gpio_set_direction(rx_config->input_pin, GPIO_MODE_INPUT_OUTPUT);
+    gpio_set_direction(rx_config->input_pin, GPIO_MODE_INPUT_OUTPUT_OD);
     gpio_matrix_out(rx_config->input_pin, RMT_SIG_OUT0_IDX + tx_channel, 0, 0);
     gpio_matrix_in(rx_config->input_pin, RMT_SIG_IN0_IDX + rx_channel, 0);
 
@@ -420,8 +421,8 @@ static void gamecube_tx_task() {
     // Listen for the controller's response.
     rmt_rx_start(rx_channel, true);
 
-    // controller_data controller_msg;
-    // rmt_item32_t out_pulses[81];
+    controller_data controller_msg;
+    rmt_item32_t out_pulses[81];
 
     while (true) {
         size_t rx_size = 0;
@@ -430,55 +431,53 @@ static void gamecube_tx_task() {
 
         if (item) {
             size_t num_items = rx_size / sizeof(rmt_item32_t);
-
-            // Item includes both the console command and the controller response, as the RX
-            // channel is always listening and the protocol shares one wire.
             // printf("rmt num_items %d\n", num_items);
+
             if (num_items == 9) {
                 uint8_t msg = read_byte(item);
-                if (msg == 0x00 || msg == 0xff) {
-                    // printf("CONSOLE PROBE (0x%x)\n", msg);
-                    // write_byte(0x09, &out_pulses[0]);
-                    // write_byte(0x00, &out_pulses[8]);
-                    // write_byte(0x03, &out_pulses[16]); // Try this instead: 00100000
-                    // out_pulses[24] = stop_bit;
-                    rmt_write_items(tx_channel, &CONTROLLER_PROBE_RESPONSE[0], 25, true);
-                }// else if (msg == 0x41 || msg == 0x42) {
-            //         printf("CONSOLE PROBE ORIGIN (0x%x)\n", msg);
-            //         if (xQueueReceive(rx_config->gamecube_data_queue, (void *)&controller_msg, 0)) {
-            //             controller_msg.start_button = 1;
-            //             controller_msg.y_button = 1;
-            //             controller_msg.x_button = 1;
-            //             controller_msg.b_button = 1;
-            //             controller_msg.a_button = 1;
-            //             controller_msg.l_button = 1;
-            //             controller_msg.r_button = 1;
-            //             controller_msg.z_button = 1;
-            //             controller_msg.dpad_up_button = 1;
-            //             controller_msg.dpad_down_button = 1;
-            //             controller_msg.dpad_right_button = 1;
-            //             controller_msg.dpad_left_button = 1;
-            //             controller_to_pulses(&controller_msg, &out_pulses);
-            //             write_byte(0x00, &out_pulses[64]);
-            //             write_byte(0x00, &out_pulses[72]);
-            //             out_pulses[80] = one_bit;
 
-            //             rmt_write_items(tx_channel, &out_pulses, 81, true);
-            //         }
-            //     } else {
-            //         printf("UNRECOGNIZED PROBE 0x%x\n", msg);
-            //     }
-            } else if (num_items >= 25) {
-                // printf("console response!\n");
-                // for (int i = 0; i < num_items; i++) {
-                //     printf("%u|%d %u|%d\n", item[i].level0, item[i].duration0, item[i].level1, item[i].duration1);
-                // }
-                // uint8_t msg = read_byte(&item[25]);
-                // printf("prospective probe msg 0x%x\n", msg);
-                // if (xQueueReceive(rx_config->gamecube_data_queue, (void *)&controller_msg, 0)) {
-                //     controller_to_pulses(&controller_msg, &out_pulses);
-                //     rmt_write_items(tx_channel, &out_pulses, 65, true);
-                // }
+                if (msg == 0x00 || msg == 0xff) {
+                    // The console is probing for a controller, write a controller probe response.
+                    rmt_write_items(tx_channel, &CONTROLLER_PROBE_RESPONSE[0], 25, true);
+
+                    // Now is a good time to fetch the latest controller data from the queue.
+                    while (xQueueReceive(rx_config->gamecube_data_queue, (void *)&controller_msg, 0)) {
+                        // Just exhausing the queue so we have the latest data.
+                    }
+                } else if (msg == 0x41 || msg == 0x42) {
+                    // The console is probing for the controller origin data (where the analog values sit when not touched).
+                    // We may not want to reply here until we've received at least one packet of controller data.
+                    controller_msg.start_button = 0;
+                    controller_msg.y_button = 0;
+                    controller_msg.x_button = 0;
+                    controller_msg.b_button = 0;
+                    controller_msg.a_button = 0;
+                    controller_msg.l_button = 0;
+                    controller_msg.r_button = 0;
+                    controller_msg.z_button = 0;
+                    controller_msg.dpad_up_button = 0;
+                    controller_msg.dpad_down_button = 0;
+                    controller_msg.dpad_right_button = 0;
+                    controller_msg.dpad_left_button = 0;
+                    controller_to_pulses(&controller_msg, &out_pulses[0]);
+                    write_byte(0x00, &out_pulses[64]);
+                    write_byte(0x00, &out_pulses[72]);
+                    out_pulses[80] = one_bit;
+
+                    rmt_write_items(tx_channel, &out_pulses[0], 81, true);
+                }
+            } else if (num_items == 25) {
+                uint8_t msg1 = read_byte(&item[0]);
+                uint8_t msg2 = read_byte(&item[8]);
+                // uint8_t msg3 = read_byte(&item[16]);
+
+                if (msg1 == 0x40 && msg2 == 0x03) {
+                    // The console is requesting controller data.
+                    // The LSB in msg3 is a boolean indicating whether or not
+                    // the controller should rumble.
+                    controller_to_pulses(&controller_msg, &out_pulses[0]);
+                    rmt_write_items(tx_channel, &out_pulses[0], 65, true);
+                }
             }
 
             vRingbufferReturnItem(rx_ring_buffer, (void*)item);

@@ -57,7 +57,7 @@ void controller_from_bytes(uint8_t* src, controller_data* controller);
 void controller_from_pulses(rmt_item32_t* pulses, controller_data* controller);
 
 // Reads GameCube controller data from a series of pulses from the RMT hardware module.
-void controller_to_pulses(controller_data* controller, rmt_item32_t* pulses);
+void IRAM_ATTR controller_to_pulses(controller_data* controller, rmt_item32_t* pulses);
 
 // Prints out the controller info on the serial port.
 void print_controller_data(controller_data* controller);
