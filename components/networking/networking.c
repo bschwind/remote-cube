@@ -13,12 +13,14 @@
 #include "lwip/sockets.h"
 #include <lwip/netdb.h>
 
+#include "gamecube_controller.h"
+
 #define WIFI_SSID           CONFIG_ESP_WIFI_SSID
 #define WIFI_PASS           CONFIG_ESP_WIFI_PASSWORD
 #define WIFI_MAXIMUM_RETRY  CONFIG_ESP_MAXIMUM_RETRY
 #define HOST_IP_ADDR        CONFIG_ESP_SERVER_IP
 #define PORT                CONFIG_ESP_SERVER_PORT
-#define IS_SERVER           CONFIG_ESP_SERVER_MODE
+#define IS_SERVER           (true)
 
 /* FreeRTOS event group to signal when we are connected*/
 static EventGroupHandle_t s_wifi_event_group;
@@ -86,16 +88,6 @@ static void udp_server_task(void *pvParameters)
         }
         ESP_LOGI(TAG, "Socket created");
 
-#if defined(CONFIG_EXAMPLE_IPV4) && defined(CONFIG_EXAMPLE_IPV6)
-        if (addr_family == AF_INET6) {
-            // Note that by default IPV6 binds to both protocols, it is must be disabled
-            // if both protocols used at the same time (used in CI)
-            int opt = 1;
-            setsockopt(sock, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt));
-            setsockopt(sock, IPPROTO_IPV6, IPV6_V6ONLY, &opt, sizeof(opt));
-        }
-#endif
-
         int err = bind(sock, (struct sockaddr *)&dest_addr, sizeof(dest_addr));
         if (err < 0) {
             ESP_LOGE(TAG, "Socket unable to bind: errno %d", errno);
@@ -103,8 +95,6 @@ static void udp_server_task(void *pvParameters)
         ESP_LOGI(TAG, "Socket bound, port %d", PORT);
 
         while (1) {
-
-            ESP_LOGI(TAG, "Waiting for data");
             struct sockaddr_storage source_addr; // Large enough for both IPv4 or IPv6
             socklen_t socklen = sizeof(source_addr);
             int len = recvfrom(sock, rx_buffer, sizeof(rx_buffer) - 1, 0, (struct sockaddr *)&source_addr, &socklen);
@@ -121,13 +111,10 @@ static void udp_server_task(void *pvParameters)
                     inet6_ntoa_r(((struct sockaddr_in6 *)&source_addr)->sin6_addr, addr_str, sizeof(addr_str) - 1);
                 }
 
-                rx_buffer[len] = 0; // Null-terminate whatever we received and treat like a string...
-                ESP_LOGI(TAG, "Received %d bytes from %s:", len, addr_str);
-                ESP_LOGI(TAG, "%s", rx_buffer);
-
                 if (len == 8) {
-                    xQueueSend(queue, (void *)&rx_buffer, 10);
-                    ESP_LOGI(TAG, "Sent to queue!");
+                    controller_data controller_msg;
+                    controller_from_bytes(&rx_buffer, &controller_msg);
+                    xQueueOverwrite(queue, (void *)&controller_msg);
                 } else {
                     ESP_LOGW(TAG, "wrong len: wanted 8, was %d", len);
                 }
@@ -145,8 +132,6 @@ static void udp_server_task(void *pvParameters)
 
 static void udp_client_task(void *pvParameters)
 {
-    char rx_buffer[128];
-    char host_ip[] = HOST_IP_ADDR;
     QueueHandle_t queue = (QueueHandle_t)pvParameters;
     int addr_family = 0;
     int ip_protocol = 0;
@@ -166,38 +151,19 @@ static void udp_client_task(void *pvParameters)
         }
         ESP_LOGI(TAG, "Socket created, sending to %s:%d", HOST_IP_ADDR, PORT);
 
-        uint8_t rcv_msg[8] = {0};
+        controller_data controller_msg;
+        uint8_t serialized[8] = {0};
         while (1) {
-            if (xQueueReceive(queue, (void *)&rcv_msg, portMAX_DELAY) == pdTRUE) {
-                int err = sendto(sock, &rcv_msg, 8, 0, (struct sockaddr *)&dest_addr, sizeof(dest_addr));
+            if (xQueueReceive(queue, (void *)&controller_msg, portMAX_DELAY)) {
+                write_controller_bytes(&controller_msg, (uint8_t *)&serialized);
+                int err = sendto(sock, &serialized, sizeof(serialized), 0, (struct sockaddr *)&dest_addr, sizeof(dest_addr));
                 if (err < 0) {
                     ESP_LOGE(TAG, "Error occurred during sending: errno %d", errno);
                     break;
                 }
-                ESP_LOGI(TAG, "Message sent");
-
-                struct sockaddr_storage source_addr; // Large enough for both IPv4 or IPv6
-                socklen_t socklen = sizeof(source_addr);
-                int len = recvfrom(sock, rx_buffer, sizeof(rx_buffer) - 1, 0, (struct sockaddr *)&source_addr, &socklen);
-
-                // Error occurred during receiving
-                if (len < 0) {
-                    ESP_LOGE(TAG, "recvfrom failed: errno %d", errno);
-                    break;
-                }
-                // Data received
-                else {
-                    rx_buffer[len] = 0; // Null-terminate whatever we received and treat like a string
-                    ESP_LOGI(TAG, "Received %d bytes from %s:", len, host_ip);
-                    ESP_LOGI(TAG, "%s", rx_buffer);
-                    if (strncmp(rx_buffer, "OK: ", 4) == 0) {
-                        ESP_LOGI(TAG, "Received expected message, reconnecting");
-                        break;
-                    }
-                }
-
-                vTaskDelay(2000 / portTICK_PERIOD_MS);
             }
+
+            vTaskDelay(0);
         }
 
         if (sock != -1) {
@@ -288,7 +254,7 @@ static void wifi_init_sta(void *pvParameters)
     }
 }
 
-void networking_init(bool sending, QueueHandle_t packet_queue)
+void networking_init(QueueHandle_t packet_queue)
 {
     //Initialize NVS
     esp_err_t ret = nvs_flash_init();
