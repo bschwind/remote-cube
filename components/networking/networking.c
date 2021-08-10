@@ -20,7 +20,7 @@
 #define WIFI_MAXIMUM_RETRY  CONFIG_ESP_MAXIMUM_RETRY
 #define HOST_IP_ADDR        CONFIG_ESP_SERVER_IP
 #define PORT                CONFIG_ESP_SERVER_PORT
-#define IS_SERVER           1
+#define IS_SERVER           (true)
 
 /* FreeRTOS event group to signal when we are connected*/
 static EventGroupHandle_t s_wifi_event_group;
@@ -114,14 +114,11 @@ static void udp_server_task(void *pvParameters)
                 if (len == 8) {
                     controller_data controller_msg;
                     controller_from_bytes(&rx_buffer, &controller_msg);
-                    print_controller_data(&controller_msg);
-                    // xQueueSend(queue, (void *)&rx_buffer, 10);
-                    // ESP_LOGI(TAG, "Sent to queue!");
+                    xQueueOverwrite(queue, (void *)&controller_msg);
                 } else {
                     ESP_LOGW(TAG, "wrong len: wanted 8, was %d", len);
                 }
             }
-            vTaskDelay(1);
         }
 
         if (sock != -1) {

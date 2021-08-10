@@ -475,6 +475,9 @@ static void gamecube_tx_task() {
                     // The console is requesting controller data.
                     // The LSB in msg3 is a boolean indicating whether or not
                     // the controller should rumble.
+
+                    // Get the next data to send to the controller.
+                    xQueueReceive(rx_config->gamecube_data_queue, (void *)&controller_msg, 0);
                     controller_to_pulses(&controller_msg, &out_pulses[0]);
                     rmt_write_items(tx_channel, &out_pulses[0], 65, true);
                 }
