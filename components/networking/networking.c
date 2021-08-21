@@ -248,9 +248,9 @@ static void wifi_init_sta(void *pvParameters)
     vEventGroupDelete(s_wifi_event_group);
 
     if (IS_SERVER) {
-        xTaskCreate(udp_server_task, "udp_server", 4096, (void*)queue, 5, NULL);
+        xTaskCreatePinnedToCore(udp_server_task, "udp_server", 4096, (void*)queue, 5, NULL, 0);
     } else {
-        xTaskCreate(udp_client_task, "udp_client", 4096, (void*)queue, 5, NULL);
+        xTaskCreatePinnedToCore(udp_client_task, "udp_client", 4096, (void*)queue, 5, NULL, 0);
     }
 }
 
