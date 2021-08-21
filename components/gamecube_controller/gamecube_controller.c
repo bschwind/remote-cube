@@ -505,7 +505,7 @@ esp_err_t gamecube_tx_start(gamecube_rx_config config) {
     rx_config = malloc(sizeof(gamecube_rx_config));
     memcpy(rx_config, &config, sizeof(gamecube_rx_config));
 
-    xTaskCreate(gamecube_tx_task, "gamecube_tx_task", 1024 * 4, NULL, 10, NULL);
+    xTaskCreatePinnedToCore(gamecube_tx_task, "gamecube_tx_task", 1024 * 4, NULL, 10, NULL, 1);
 
     return ESP_OK;
 }
