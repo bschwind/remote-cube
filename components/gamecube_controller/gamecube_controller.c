@@ -418,11 +418,21 @@ static void gamecube_tx_task() {
     gpio_matrix_out(rx_config->input_pin, RMT_SIG_OUT0_IDX + tx_channel, 0, 0);
     gpio_matrix_in(rx_config->input_pin, RMT_SIG_IN0_IDX + rx_channel, 0);
 
+    // The controller data to receive from the queue and send over the RMT peripheral.
+    controller_data controller_msg;
+
+    // Cache the controller "origin" response in case we lose connection
+    // to the console and need to re-send it. This prevents controller drift
+    // if the sticks are off center when the controller reconnects.
+    controller_data origin_msg;
+    bool origin_set = false;
+
+    // A stack-allocated buffer of pulses to use when sending controller
+    // data to the console. We never need more than 81 pulses.
+    rmt_item32_t out_pulses[81];
+
     // Listen for the controller's response.
     rmt_rx_start(rx_channel, true);
-
-    controller_data controller_msg;
-    rmt_item32_t out_pulses[81];
 
     while (true) {
         size_t rx_size = 0;
@@ -447,6 +457,11 @@ static void gamecube_tx_task() {
                 } else if (msg == 0x41 || msg == 0x42) {
                     // The console is probing for the controller origin data (where the analog values sit when not touched).
                     // We may not want to reply here until we've received at least one packet of controller data.
+
+                    if (origin_set) {
+                        controller_msg = origin_msg;
+                    }
+
                     controller_msg.start_button = 0;
                     controller_msg.y_button = 0;
                     controller_msg.x_button = 0;
@@ -463,6 +478,11 @@ static void gamecube_tx_task() {
                     write_byte(0x00, &out_pulses[64]);
                     write_byte(0x00, &out_pulses[72]);
                     out_pulses[80] = one_bit;
+
+                    if (!origin_set) {
+                        origin_msg = controller_msg;
+                        origin_set = true;
+                    }
 
                     rmt_write_items(tx_channel, &out_pulses[0], 81, true);
                 }
