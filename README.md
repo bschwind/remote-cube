@@ -1,8 +1,10 @@
 # Remote Cube
 
-**Note:** This project is still a work-in-progress. Reading from the controller works, but pretending to be a controller is still in ongoing development.
-
 An ESP32-based project for reading/writing GameCube controller signals and sending them over a network.
+
+**Status:** It works! Use `make menuconfig` to define whether the ESP32 is a "client" (sending controller data) or a "server" (receiving and playing back controller data). The server needs a listening port specified, and the client needs a target IP + port to send to. Currently only UDP is used. This has been tested with a RISC-V ESP32 C3 as the "client" and a plain dual-core ESP32 as the "server".
+
+This project has been confirmed to work on first-party controller adapters. Third-party adapters have given some trouble in the past, they need to be tested again.
 
 ## Clone
 
