@@ -24,9 +24,10 @@
 #define PORT                CONFIG_ESP_SERVER_PORT
 
 #define ETH_PHY_ADDR        0
-#define ETH_PHY_RST_GPIO    -1
+#define ETH_PHY_RST_GPIO    (-1)
 #define ETH_MDC_GPIO        23
 #define ETH_MDIO_GPIO       18
+#define PIN_PHY_POWER       12
 
 #define IS_SERVER           (true)
 
@@ -322,6 +323,13 @@ static void ethernet_init(void *pvParameters)
     esp_netif_config_t cfg = ESP_NETIF_DEFAULT_ETH();
     esp_netif_t *eth_netif = esp_netif_new(&cfg);
 
+    // Set default handlers to process TCP/IP stuffs
+    ESP_ERROR_CHECK(esp_eth_set_default_handlers(eth_netif));
+
+    // Register user defined event handers
+    ESP_ERROR_CHECK(esp_event_handler_register(ETH_EVENT, ESP_EVENT_ANY_ID, &eth_event_handler, NULL));
+    ESP_ERROR_CHECK(esp_event_handler_register(IP_EVENT, IP_EVENT_ETH_GOT_IP, &got_ip_event_handler, NULL));
+
     // Init MAC and PHY configs to default
     eth_mac_config_t mac_config = ETH_MAC_DEFAULT_CONFIG();
     eth_phy_config_t phy_config = ETH_PHY_DEFAULT_CONFIG();
@@ -331,6 +339,12 @@ static void ethernet_init(void *pvParameters)
 
     mac_config.smi_mdc_gpio_num = ETH_MDC_GPIO;
     mac_config.smi_mdio_gpio_num = ETH_MDIO_GPIO;
+
+    // Olimex-specific stuff?
+    gpio_pad_select_gpio(PIN_PHY_POWER);
+    gpio_set_direction(PIN_PHY_POWER, GPIO_MODE_OUTPUT);
+    gpio_set_level(PIN_PHY_POWER, 1);
+    vTaskDelay(pdMS_TO_TICKS(10));
 
     // Set up the MAC.
     esp_eth_mac_t *mac = esp_eth_mac_new_esp32(&mac_config);
@@ -344,10 +358,6 @@ static void ethernet_init(void *pvParameters)
 
     // Attach Ethernet driver to TCP/IP stack
     ESP_ERROR_CHECK(esp_netif_attach(eth_netif, esp_eth_new_netif_glue(eth_handle)));
-
-    // Register user defined event handers
-    ESP_ERROR_CHECK(esp_event_handler_register(ETH_EVENT, ESP_EVENT_ANY_ID, &eth_event_handler, NULL));
-    ESP_ERROR_CHECK(esp_event_handler_register(IP_EVENT, IP_EVENT_ETH_GOT_IP, &got_ip_event_handler, NULL));
 
     // Start Ethernet driver state machine
     ESP_ERROR_CHECK(esp_eth_start(eth_handle));
