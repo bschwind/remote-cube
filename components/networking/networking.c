@@ -17,7 +17,7 @@
 
 #if CONFIG_CUBE_USE_WIFI
 #include "cube_wifi.h"
-#else CONFIG_CUBE_USE_ETHERNET
+#elif CONFIG_CUBE_USE_ETHERNET
 #include "cube_ethernet.h"
 #endif
 
