@@ -1,5 +1,12 @@
 menu "Remote GameCube"
 
+    config CUBE_DATA_PIN
+        int "GameCube controller data pin"
+        range 0 34
+        default 0
+        help
+            The GPIO pin to use for controller communication.
+
     choice CORE_COUNT
         prompt "ESP32 Core Count"
         default CUBE_DUAL_CORE
@@ -37,13 +44,13 @@ menu "Remote GameCube"
     endchoice
 
     if CUBE_USE_WIFI
-        config ESP_WIFI_SSID
+        config CUBE_WIFI_SSID
             string "WiFi SSID"
             default "myssid"
             help
                 SSID (network name) to connect to.
 
-        config ESP_WIFI_PASSWORD
+        config CUBE_WIFI_PASSWORD
             string "WiFi Password"
             default "mypassword"
             help
@@ -69,13 +76,13 @@ menu "Remote GameCube"
     endchoice
 
     if CUBE_SENDER
-        config ESP_SERVER_IP
+        config CUBE_SERVER_IP
             string "UDP server IP"
             default "192.168.1.100"
             help
                 IP of the remote ESP32 that will receive packets.
 
-        config ESP_SERVER_PORT
+        config CUBE_SERVER_PORT
             int "UDP server port"
             default 5000
             help
@@ -84,7 +91,7 @@ menu "Remote GameCube"
     endif
 
     if CUBE_RECEIVER
-        config ESP_SERVER_PORT
+        config CUBE_SERVER_PORT
             int "UDP server port"
             default 5000
             help
