@@ -156,7 +156,7 @@ static void udp_client_task(void* pvParameters) {
 void networking_init(QueueHandle_t packet_queue) {
 #if CONFIG_CUBE_USE_WIFI
     cube_wifi_init();
-#else CONFIG_CUBE_USE_ETHERNET
+#elif CONFIG_CUBE_USE_ETHERNET
     cube_ethernet_init();
 #endif
 
