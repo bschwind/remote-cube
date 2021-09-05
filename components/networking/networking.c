@@ -104,6 +104,14 @@ static void udp_server_task(void* pvParameters) {
     }
     vTaskDelete(NULL);
 }
+
+static void init_receiver_task(QueueHandle_t packet_queue) {
+#if CONFIG_CUBE_SINGLE_CORE
+    xTaskCreate(udp_server_task, "udp_server", 4096, (void*)packet_queue, 5, NULL);
+#elif CONFIG_CUBE_DUAL_CORE
+    xTaskCreatePinnedToCore(udp_server_task, "udp_server", 4096, (void*)packet_queue, 5, NULL, 0);
+#endif
+}
 #endif
 
 #ifdef CONFIG_CUBE_SENDER
@@ -151,27 +159,26 @@ static void udp_client_task(void* pvParameters) {
     }
     vTaskDelete(NULL);
 }
-#endif
 
-void networking_init(QueueHandle_t packet_queue) {
-#if CONFIG_CUBE_USE_WIFI
-    cube_wifi_init();
-#elif CONFIG_CUBE_USE_ETHERNET
-    cube_ethernet_init();
-#endif
-
-#if CONFIG_CUBE_SENDER
+static void init_sender_task(QueueHandle_t packet_queue) {
 #if CONFIG_CUBE_SINGLE_CORE
     xTaskCreate(udp_client_task, "udp_client", 4096, (void*)packet_queue, 5, NULL);
 #elif CONFIG_CUBE_DUAL_CORE
     xTaskCreatePinnedToCore(udp_client_task, "udp_client", 4096, (void*)packet_queue, 5, NULL, 0);
 #endif
-
-#elif CONFIG_CUBE_RECEIVER
-#if CONFIG_CUBE_SINGLE_CORE
-    xTaskCreate(udp_server_task, "udp_server", 4096, (void*)packet_queue, 5, NULL);
-#elif CONFIG_CUBE_DUAL_CORE
-    xTaskCreatePinnedToCore(udp_server_task, "udp_server", 4096, (void*)packet_queue, 5, NULL, 0);
+}
 #endif
+
+void networking_init(QueueHandle_t packet_queue) {
+#if CONFIG_CUBE_USE_WIFI
+    cube_wifi_init(packet_queue);
+#elif CONFIG_CUBE_USE_ETHERNET
+    cube_ethernet_init(packet_queue);
+#endif
+
+#if CONFIG_CUBE_SENDER
+    init_sender_task(packet_queue);
+#elif CONFIG_CUBE_RECEIVER
+    init_receiver_task(packet_queue);
 #endif
 }

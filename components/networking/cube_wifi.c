@@ -1,11 +1,7 @@
 #include <string.h>
 #include "freertos/FreeRTOS.h"
-#include "freertos/task.h"
 #include "freertos/event_groups.h"
-#include "esp_system.h"
-#include "esp_netif.h"
 #include "esp_wifi.h"
-#include "esp_event.h"
 #include "esp_log.h"
 #include "nvs_flash.h"
 
@@ -23,12 +19,12 @@
 
 static const char* TAG = "cube_wifi";
 
-/* FreeRTOS event group to signal when we are connected*/
+// FreeRTOS event group to signal when we are connected
 static EventGroupHandle_t s_wifi_event_group;
 
-/* The event group allows multiple bits for each event, but we only care about two events:
- * - we are connected to the AP with an IP
- * - we failed to connect after the maximum amount of retries */
+// The event group allows multiple bits for each event, but we only care about two events:
+// * We are connected to the AP with an IP
+// * We failed to connect after the maximum amount of retries
 #define NETWORK_CONNECTED_BIT BIT0
 #define NETWORK_FAIL_BIT BIT1
 
@@ -86,30 +82,30 @@ void cube_wifi_init() {
             {
                 .ssid = WIFI_SSID,
                 .password = WIFI_PASS,
-                /* Setting a password implies station will connect to all security modes including
-                 * WEP/WPA. However these modes are deprecated and not advisable to be used. Incase
-                 * your Access point doesn't support WPA2, these mode can be enabled by commenting
-                 * below line */
+                // Setting a password implies station will connect to all security modes including
+                // WEP/WPA. However these modes are deprecated and not advisable to be used. Incase
+                // your Access point doesn't support WPA2, these mode can be enabled by commenting
+                // below line.
                 .threshold.authmode = WIFI_AUTH_WPA2_PSK,
-
                 .pmf_cfg = {.capable = true, .required = false},
             },
     };
+
     ESP_ERROR_CHECK(esp_wifi_set_mode(WIFI_MODE_STA));
     ESP_ERROR_CHECK(esp_wifi_set_config(WIFI_IF_STA, &wifi_config));
     ESP_ERROR_CHECK(esp_wifi_start());
 
     ESP_LOGI(TAG, "wifi_init_sta finished.");
 
-    /* Waiting until either the connection is established (NETWORK_CONNECTED_BIT) or connection
-     * failed for the maximum number of re-tries (NETWORK_FAIL_BIT). The bits are set by
-     * event_handler() (see above) */
+    // Waiting until either the connection is established (NETWORK_CONNECTED_BIT) or connection
+    // failed for the maximum number of re-tries (NETWORK_FAIL_BIT). The bits are set by
+    // event_handler() (see above)
     EventBits_t bits =
         xEventGroupWaitBits(s_wifi_event_group, NETWORK_CONNECTED_BIT | NETWORK_FAIL_BIT, pdFALSE,
                             pdFALSE, portMAX_DELAY);
 
-    /* xEventGroupWaitBits() returns the bits before the call returned, hence we can test which
-     * event actually happened. */
+    // xEventGroupWaitBits() returns the bits before the call returned, hence we can test which
+    // event actually happened.
     if (bits & NETWORK_CONNECTED_BIT) {
         ESP_LOGI(TAG, "connected to ap SSID:%s password:%s", WIFI_SSID, WIFI_PASS);
     } else if (bits & NETWORK_FAIL_BIT) {
@@ -118,7 +114,7 @@ void cube_wifi_init() {
         ESP_LOGE(TAG, "UNEXPECTED EVENT");
     }
 
-    /* The event will not be processed after unregister */
+    // The event will not be processed after unregister
     ESP_ERROR_CHECK(
         esp_event_handler_instance_unregister(IP_EVENT, IP_EVENT_STA_GOT_IP, instance_got_ip));
     ESP_ERROR_CHECK(

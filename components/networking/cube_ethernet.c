@@ -19,16 +19,15 @@ static const char* TAG = "cube_ethernet";
 // FreeRTOS event group to signal when we are connected.
 static EventGroupHandle_t ethernet_event_group;
 
-/* The event group allows multiple bits for each event, but we only care about two events:
- * - we are connected to the AP with an IP
- * - we failed to connect after the maximum amount of retries */
+// The event group allows multiple bits for each event, but we only care about two events:
+// * We are connected to the AP with an IP
+// * We failed to connect after the maximum amount of retries
 #define NETWORK_CONNECTED_BIT BIT0
 #define NETWORK_FAIL_BIT BIT1
 
 static void eth_event_handler(void* arg, esp_event_base_t event_base, int32_t event_id,
                               void* event_data) {
     uint8_t mac_addr[6] = {0};
-    /* we can get the ethernet driver handle from event data */
     esp_eth_handle_t eth_handle = *(esp_eth_handle_t*)event_data;
 
     switch (event_id) {
@@ -52,7 +51,6 @@ static void eth_event_handler(void* arg, esp_event_base_t event_base, int32_t ev
     }
 }
 
-/** Event handler for IP_EVENT_ETH_GOT_IP */
 static void got_ip_event_handler(void* arg, esp_event_base_t event_base, int32_t event_id,
                                  void* event_data) {
     ip_event_got_ip_t* event = (ip_event_got_ip_t*)event_data;
@@ -122,15 +120,15 @@ void cube_ethernet_init() {
     // Start Ethernet driver state machine
     ESP_ERROR_CHECK(esp_eth_start(eth_handle));
 
-    /* Waiting until either the connection is established (NETWORK_CONNECTED_BIT) or connection
-     * failed for the maximum number of re-tries (NETWORK_FAIL_BIT). The bits are set by
-     * event_handler() (see above) */
+    // Waiting until either the connection is established (NETWORK_CONNECTED_BIT) or connection
+    // failed for the maximum number of re-tries (NETWORK_FAIL_BIT). The bits are set by
+    // event_handler() (see above)
     EventBits_t bits =
         xEventGroupWaitBits(ethernet_event_group, NETWORK_CONNECTED_BIT | NETWORK_FAIL_BIT, pdFALSE,
                             pdFALSE, portMAX_DELAY);
 
-    /* xEventGroupWaitBits() returns the bits before the call returned, hence we can test which
-     * event actually happened. */
+    // xEventGroupWaitBits() returns the bits before the call returned, hence we can test which
+    // event actually happened.
     if (bits & NETWORK_CONNECTED_BIT) {
         ESP_LOGI(TAG, "connected");
     } else if (bits & NETWORK_FAIL_BIT) {
@@ -139,7 +137,7 @@ void cube_ethernet_init() {
         ESP_LOGE(TAG, "UNEXPECTED EVENT");
     }
 
-    /* The event will not be processed after unregister */
+    // The event will not be processed after unregister
     // ESP_ERROR_CHECK(esp_event_handler_instance_unregister(IP_EVENT, IP_EVENT_STA_GOT_IP,
     // instance_got_ip)); ESP_ERROR_CHECK(esp_event_handler_instance_unregister(WIFI_EVENT,
     // ESP_EVENT_ANY_ID, instance_any_id)); vEventGroupDelete(ethernet_event_group);
