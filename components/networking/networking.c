@@ -161,8 +161,17 @@ void networking_init(QueueHandle_t packet_queue) {
 #endif
 
 #if CONFIG_CUBE_SENDER
+#if CONFIG_CUBE_SINGLE_CORE
+    xTaskCreate(udp_client_task, "udp_client", 4096, (void*)packet_queue, 5, NULL);
+#elif CONFIG_CUBE_DUAL_CORE
     xTaskCreatePinnedToCore(udp_client_task, "udp_client", 4096, (void*)packet_queue, 5, NULL, 0);
+#endif
+
 #elif CONFIG_CUBE_RECEIVER
+#if CONFIG_CUBE_SINGLE_CORE
+    xTaskCreate(udp_server_task, "udp_server", 4096, (void*)packet_queue, 5, NULL);
+#elif CONFIG_CUBE_DUAL_CORE
     xTaskCreatePinnedToCore(udp_server_task, "udp_server", 4096, (void*)packet_queue, 5, NULL, 0);
+#endif
 #endif
 }

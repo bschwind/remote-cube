@@ -182,14 +182,15 @@ void IRAM_ATTR controller_to_pulses(controller_data* controller, rmt_item32_t* p
 }
 
 void print_controller_data(controller_data* controller) {
-    printf("S: %u, Y: %u, X: %u, B: %u, A: %u, L: %u, R: %u, Z: %u, ⬆️: %u, ⬇️: %u, ➡️: %u, "
-           "⬅️: %u, Joystick: (%u, %u), C-Stick: (%u, %u), Bumps: (%u, %u)\n",
-           controller->start_button, controller->y_button, controller->x_button,
-           controller->b_button, controller->a_button, controller->l_button, controller->r_button,
-           controller->z_button, controller->dpad_up_button, controller->dpad_down_button,
-           controller->dpad_right_button, controller->dpad_left_button, controller->joystick_x,
-           controller->joystick_y, controller->c_stick_x, controller->c_stick_y,
-           controller->l_bumper, controller->r_bumper);
+    printf(
+        "S: %u, Y: %u, X: %u, B: %u, A: %u, L: %u, R: %u, Z: %u, ⬆️: %u, ⬇️: %u, ➡️: "
+        "%u, "
+        "⬅️: %u, Joystick: (%u, %u), C-Stick: (%u, %u), Bumps: (%u, %u)\n",
+        controller->start_button, controller->y_button, controller->x_button, controller->b_button,
+        controller->a_button, controller->l_button, controller->r_button, controller->z_button,
+        controller->dpad_up_button, controller->dpad_down_button, controller->dpad_right_button,
+        controller->dpad_left_button, controller->joystick_x, controller->joystick_y,
+        controller->c_stick_x, controller->c_stick_y, controller->l_bumper, controller->r_bumper);
 }
 
 static void gamecube_rx_task() {
@@ -470,7 +471,11 @@ esp_err_t gamecube_tx_start(gamecube_rx_config config) {
     rx_config = malloc(sizeof(gamecube_rx_config));
     memcpy(rx_config, &config, sizeof(gamecube_rx_config));
 
+#if CONFIG_CUBE_SINGLE_CORE
+    xTaskCreate(gamecube_tx_task, "gamecube_tx_task", 1024 * 4, NULL, 10, NULL);
+#elif CONFIG_CUBE_DUAL_CORE
     xTaskCreatePinnedToCore(gamecube_tx_task, "gamecube_tx_task", 1024 * 4, NULL, 10, NULL, 1);
+#endif
 
     return ESP_OK;
 }
