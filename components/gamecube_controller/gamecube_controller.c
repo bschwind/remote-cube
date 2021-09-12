@@ -5,7 +5,7 @@
 #include <sys/time.h>
 
 #define RMT_CLOCK_SPEED 80000000
-#define RMT_CLOCK_DIVIDER 80 // This evaluates to 1 RMT tick = 1 microsecond
+#define RMT_CLOCK_DIVIDER 80          // This evaluates to 1 RMT tick = 1 microsecond
 #define RMT_RX_IDLE_THRESHOLD_US 9500 // Idle threshold for the remote receiver
 
 static gamecube_rx_config* rx_config = NULL;
@@ -26,67 +26,23 @@ static const rmt_item32_t one_bit = {
 
 // 01000000 00000011 00000000 - 0x40, 0x03, 0x00
 static rmt_item32_t CONSOLE_TO_CONTROLLER_DATA[25] = {
-    zero_bit,
-    one_bit,
-    zero_bit,
-    zero_bit,
-    zero_bit,
-    zero_bit,
-    zero_bit,
-    zero_bit,
+    zero_bit, one_bit,  zero_bit, zero_bit, zero_bit, zero_bit, zero_bit, zero_bit,
 
-    zero_bit,
-    zero_bit,
-    zero_bit,
-    zero_bit,
-    zero_bit,
-    zero_bit,
-    one_bit,
-    one_bit,
+    zero_bit, zero_bit, zero_bit, zero_bit, zero_bit, zero_bit, one_bit,  one_bit,
 
-    zero_bit,
-    zero_bit,
-    zero_bit,
-    zero_bit,
-    zero_bit,
-    zero_bit,
-    zero_bit,
-    zero_bit,
+    zero_bit, zero_bit, zero_bit, zero_bit, zero_bit, zero_bit, zero_bit, zero_bit,
 
-    one_bit
-};
+    one_bit};
 
 // 00001001 00000000 00000011 - 0x09, 0x00, 0x03
 static rmt_item32_t CONTROLLER_PROBE_RESPONSE[25] = {
-    zero_bit,
-    zero_bit,
-    zero_bit,
-    zero_bit,
-    one_bit,
-    zero_bit,
-    zero_bit,
-    one_bit,
+    zero_bit, zero_bit, zero_bit, zero_bit, one_bit,  zero_bit, zero_bit, one_bit,
 
-    zero_bit,
-    zero_bit,
-    zero_bit,
-    zero_bit,
-    zero_bit,
-    zero_bit,
-    zero_bit,
-    zero_bit,
+    zero_bit, zero_bit, zero_bit, zero_bit, zero_bit, zero_bit, zero_bit, zero_bit,
 
-    zero_bit,
-    zero_bit,
-    zero_bit,
-    zero_bit,
-    zero_bit,
-    zero_bit,
-    one_bit,
-    one_bit,
+    zero_bit, zero_bit, zero_bit, zero_bit, zero_bit, zero_bit, one_bit,  one_bit,
 
-    one_bit
-};
+    one_bit};
 
 // Reads a byte from the GameCube controller pulse data.
 static inline uint8_t IRAM_ATTR read_byte(rmt_item32_t* items) {
@@ -95,7 +51,8 @@ static inline uint8_t IRAM_ATTR read_byte(rmt_item32_t* items) {
     for (int i = 0; i < 8; i++) {
         bool is_one = items[i].duration0 < items[i].duration1;
         val |= (is_one << (7 - i));
-        // printf("%u|%d %u|%d\n", items[i].level0, items[i].duration0, items[i].level1, items[i].duration1);
+        // printf("%u|%d %u|%d\n", items[i].level0, items[i].duration0, items[i].level1,
+        // items[i].duration1);
     }
 
     // printf("Read byte: %u\n", val);
@@ -107,7 +64,7 @@ static inline uint8_t IRAM_ATTR read_byte(rmt_item32_t* items) {
 static inline void IRAM_ATTR write_byte(uint8_t b, rmt_item32_t* items) {
     // printf("write_byte(%d, ", b);
     for (int i = 0; i < 8; i++) {
-        bool is_one = ((b >> (7-i)) & 1) == 1;
+        bool is_one = ((b >> (7 - i)) & 1) == 1;
         items[i] = is_one ? one_bit : zero_bit;
         // printf("%d", is_one);
     }
@@ -210,7 +167,7 @@ void IRAM_ATTR controller_to_pulses(controller_data* controller, rmt_item32_t* p
     pulses[9] = controller->l_button ? one_bit : zero_bit;
     pulses[10] = controller->r_button ? one_bit : zero_bit;
     pulses[11] = controller->z_button ? one_bit : zero_bit;
-    pulses[12] = controller->dpad_up_button   ? one_bit : zero_bit;
+    pulses[12] = controller->dpad_up_button ? one_bit : zero_bit;
     pulses[13] = controller->dpad_down_button ? one_bit : zero_bit;
     pulses[14] = controller->dpad_right_button ? one_bit : zero_bit;
     pulses[15] = controller->dpad_left_button ? one_bit : zero_bit;
@@ -225,26 +182,15 @@ void IRAM_ATTR controller_to_pulses(controller_data* controller, rmt_item32_t* p
 }
 
 void print_controller_data(controller_data* controller) {
-    printf("S: %u, Y: %u, X: %u, B: %u, A: %u, L: %u, R: %u, Z: %u, ⬆️: %u, ⬇️: %u, ➡️: %u, ⬅️: %u, Joystick: (%u, %u), C-Stick: (%u, %u), Bumps: (%u, %u)\n",
-        controller->start_button,
-        controller->y_button,
-        controller->x_button,
-        controller->b_button,
-        controller->a_button,
-        controller->l_button,
-        controller->r_button,
-        controller->z_button,
-        controller->dpad_up_button,
-        controller->dpad_down_button,
-        controller->dpad_right_button,
-        controller->dpad_left_button,
-        controller->joystick_x,
-        controller->joystick_y,
-        controller->c_stick_x,
-        controller->c_stick_y,
-        controller->l_bumper,
-        controller->r_bumper
-    );
+    printf(
+        "S: %u, Y: %u, X: %u, B: %u, A: %u, L: %u, R: %u, Z: %u, ⬆️: %u, ⬇️: %u, ➡️: "
+        "%u, "
+        "⬅️: %u, Joystick: (%u, %u), C-Stick: (%u, %u), Bumps: (%u, %u)\n",
+        controller->start_button, controller->y_button, controller->x_button, controller->b_button,
+        controller->a_button, controller->l_button, controller->r_button, controller->z_button,
+        controller->dpad_up_button, controller->dpad_down_button, controller->dpad_right_button,
+        controller->dpad_left_button, controller->joystick_x, controller->joystick_y,
+        controller->c_stick_x, controller->c_stick_y, controller->l_bumper, controller->r_bumper);
 }
 
 static void gamecube_rx_task() {
@@ -342,8 +288,7 @@ static void gamecube_rx_task() {
 
         size_t rx_size = 0;
 
-        rmt_item32_t* item =
-            (rmt_item32_t*)xRingbufferReceive(rx_ring_buffer, &rx_size, 100);
+        rmt_item32_t* item = (rmt_item32_t*)xRingbufferReceive(rx_ring_buffer, &rx_size, 100);
 
         if (item) {
             size_t num_items = rx_size / sizeof(rmt_item32_t);
@@ -436,8 +381,7 @@ static void gamecube_tx_task() {
 
     while (true) {
         size_t rx_size = 0;
-        rmt_item32_t* item =
-            (rmt_item32_t*)xRingbufferReceive(rx_ring_buffer, &rx_size, 100);
+        rmt_item32_t* item = (rmt_item32_t*)xRingbufferReceive(rx_ring_buffer, &rx_size, 100);
 
         if (item) {
             size_t num_items = rx_size / sizeof(rmt_item32_t);
@@ -451,12 +395,14 @@ static void gamecube_tx_task() {
                     rmt_write_items(tx_channel, &CONTROLLER_PROBE_RESPONSE[0], 25, true);
 
                     // Now is a good time to fetch the latest controller data from the queue.
-                    while (xQueueReceive(rx_config->gamecube_data_queue, (void *)&controller_msg, 0)) {
+                    while (
+                        xQueueReceive(rx_config->gamecube_data_queue, (void*)&controller_msg, 0)) {
                         // Just exhausing the queue so we have the latest data.
                     }
                 } else if (msg == 0x41 || msg == 0x42) {
-                    // The console is probing for the controller origin data (where the analog values sit when not touched).
-                    // We may not want to reply here until we've received at least one packet of controller data.
+                    // The console is probing for the controller origin data (where the analog
+                    // values sit when not touched). We may not want to reply here until we've
+                    // received at least one packet of controller data.
 
                     if (origin_set) {
                         controller_msg = origin_msg;
@@ -497,7 +443,7 @@ static void gamecube_tx_task() {
                     // the controller should rumble.
 
                     // Get the next data to send to the controller.
-                    xQueueReceive(rx_config->gamecube_data_queue, (void *)&controller_msg, 0);
+                    xQueueReceive(rx_config->gamecube_data_queue, (void*)&controller_msg, 0);
                     controller_to_pulses(&controller_msg, &out_pulses[0]);
                     rmt_write_items(tx_channel, &out_pulses[0], 65, true);
                 }
@@ -525,7 +471,11 @@ esp_err_t gamecube_tx_start(gamecube_rx_config config) {
     rx_config = malloc(sizeof(gamecube_rx_config));
     memcpy(rx_config, &config, sizeof(gamecube_rx_config));
 
+#if CONFIG_CUBE_SINGLE_CORE
+    xTaskCreate(gamecube_tx_task, "gamecube_tx_task", 1024 * 4, NULL, 10, NULL);
+#elif CONFIG_CUBE_DUAL_CORE
     xTaskCreatePinnedToCore(gamecube_tx_task, "gamecube_tx_task", 1024 * 4, NULL, 10, NULL, 1);
+#endif
 
     return ESP_OK;
 }

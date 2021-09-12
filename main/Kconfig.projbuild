@@ -1,0 +1,102 @@
+menu "Remote GameCube"
+
+    config CUBE_DATA_PIN
+        int "GameCube controller data pin"
+        range 0 34
+        default 0
+        help
+            The GPIO pin to use for controller communication.
+
+    choice CORE_COUNT
+        prompt "ESP32 Core Count"
+        default CUBE_DUAL_CORE
+        help
+            Select whether this will be deployed on a single-core or dual-core ESP32.
+
+        config CUBE_SINGLE_CORE
+            bool "Single Core"
+            help
+                Use a single-core ESP32.
+
+        config CUBE_DUAL_CORE
+            bool "Dual Core"
+            help
+                Use a dual-core ESP32.
+
+    endchoice
+
+    choice NETWORK_CONNECTIVITY
+        prompt "Network Connection"
+        default CUBE_USE_WIFI
+        help
+            Select Wi-Fi or Ethernet connectivity
+
+        config CUBE_USE_WIFI
+            bool "WiFi"
+            help
+                Use WiFi to connect to the network.
+
+        config CUBE_USE_ETHERNET
+            bool "Ethernet"
+            help
+                Use ethernet to connect to the network.
+
+    endchoice
+
+    if CUBE_USE_WIFI
+        config CUBE_WIFI_SSID
+            string "WiFi SSID"
+            default "myssid"
+            help
+                SSID (network name) to connect to.
+
+        config CUBE_WIFI_PASSWORD
+            string "WiFi Password"
+            default "mypassword"
+            help
+                WiFi password (WPA or WPA2) to use.
+    endif
+
+    choice CONTROLLER_SIDE
+        prompt "Controller Side"
+        default CUBE_SENDER
+        help
+            Select whether this will be a sender or receiver of network controller data.
+
+        config CUBE_SENDER
+            bool "Sender"
+            help
+                Sends controller data over the network to a remote ESP32.
+
+        config CUBE_RECEIVER
+            bool "Receiver"
+            help
+                Receives controller data over the network from a remote ESP32 and plays it back on a console locally.
+
+    endchoice
+
+    if CUBE_SENDER
+        config CUBE_SERVER_IP
+            string "UDP server IP"
+            default "192.168.1.100"
+            help
+                IP of the remote ESP32 that will receive packets.
+
+        config CUBE_SERVER_PORT
+            int "UDP server port"
+            default 5000
+            help
+                Port of the remote ESP32 that will receive packets.
+
+    endif
+
+    if CUBE_RECEIVER
+        config CUBE_SERVER_PORT
+            int "UDP server port"
+            default 5000
+            help
+                Port to bind to for receiving network packets.
+
+    endif
+
+endmenu
